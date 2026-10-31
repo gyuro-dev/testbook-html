@@ -6,6 +6,20 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+### Added
+
+- "⋯ → How to use (GitHub)" opens the README, so people who only received a test file can find the guide.
+- In browsers that cannot overwrite files, the top bar says so before the first save.
+
+### Changed
+
+- The README explains how to start a test file, how several people start from the same file, how to move a file to a new version, and lists the keys in one place.
+
+### Fixed
+
+- After the browser was restarted, the top bar said "autosaving soon" although autosave waits until overwriting the file is allowed. It now says "save with Ctrl+S".
+- Opening a copy of a test file (renamed, or the same name in another folder) no longer saves into the original file; the first save asks where to save.
+
 ## [0.1.0] - 2026-10-31
 
 First public version.

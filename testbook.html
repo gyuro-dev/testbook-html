@@ -371,6 +371,8 @@ body.dragging .gridwrap,body.dragging .boardwrap{outline:3px dashed var(--accent
  */
 // アプリの版。CHANGELOG.md の一番新しい版と同じにする（試験が確かめる）。公開のタグ v<版> とも同じ
 const APP_VERSION = '0.1.0';
+// 使い方の説明（README）の置き場所。ファイルを受け取っただけの人も ⋯ メニューからたどれるように
+const REPO_URL = 'https://github.com/gyuro-dev/testbook-html';
 /* 画面の言葉。コードの中の文言は日本語で書いて _t に通す。英語で使うときは EN の表で引く（鍵は日本語の文そのもの）。
  * 言語はブラウザの設定から決め、⋯ メニューで変えられる（この PC のブラウザに覚える）。ファイルの中身（列の名前など）は翻訳しない。
  * let なのは試験が切り替えて描き直すため。画面からの切り替えは開き直す */
@@ -614,6 +616,9 @@ const EN = {
   '文字の色': 'Text color',
   '文字をコピー': 'Copy text',
   '新しい試験ファイル': 'New test file',
+  '使い方（GitHub）': 'How to use (GitHub)',
+  '上書き保存できないブラウザです': 'This browser cannot overwrite files',
+  'このブラウザでは、保存するとダウンロードになります。開いているファイルに上書きするには、Edge か Chrome で開いてください。': 'In this browser, saving downloads a copy. To overwrite the open file, open it in Edge or Chrome.',
   '新しく作る': 'Create new',
   '昇順': 'ascending',
   '昇順に並べ替え': 'Sort ascending',
@@ -742,6 +747,8 @@ const EN = {
   '（{0} 行を追加）': ' ({0} rows added)',
   '（なし）': '(none)',
   '（まもなく自動保存）': ' (autosaving soon)',
+  '（Ctrl+S で保存）': ' (save with Ctrl+S)',
+  '（上書きの許可がまだないので、自動保存は止まっています。Ctrl+S で保存して許可すると、自動保存に戻ります）': ' (autosave is paused until you allow overwriting the file: save with Ctrl+S and allow it, and autosave resumes)',
   '（クリックするか Esc で閉じます）': '(click or Esc to close)',
   '（削除された行）': '(deleted row)',
   '（重複していた ID {0} 件を振り直しました）': ' ({0} duplicate IDs were renumbered)',
@@ -1583,11 +1590,16 @@ function renderHeader() {
 function renderStatus() {
   const el = $('#status');
   if (!el) return;
-  const file = S.handle ? S.handle.name : '', auto = S.auto && S.handle;
-  el.className = 'status' + (S.dirty ? ' dirty' : '');
-  el.textContent = S.dirty ? _t('● 保存していない変更があります') + (auto ? _t('（まもなく自動保存）') : '')
-    : S.savedAt ? `${S.autoSavedAt === S.savedAt ? _t('自動保存') : _t('保存済み')} ${fmt(S.savedAt)}${file ? ' ・ ' + file : ''}` : file ? _t('保存先: ') + file : '';
-  el.title = file + (auto ? _t('（自動保存: 入力が止まると上書きします）') : '');
+  // ブラウザを開き直したあとは、保存先を覚えていても上書きの許可がまだない（S.perm === false）。許可するまで自動保存は書かない
+  const file = S.handle ? S.handle.name : '', auto = S.auto && S.handle && S.perm !== false, waiting = S.auto && S.handle && S.perm === false;
+  // 上書きできないブラウザは、保存して初めて気づくことのないよう、開いた時点から出しておく
+  const noFs = !window.showSaveFilePicker, warn = noFs && !S.dirty && !S.savedAt && !file;
+  el.className = 'status' + (S.dirty || warn ? ' dirty' : '');
+  el.textContent = S.dirty ? _t('● 保存していない変更があります') + (auto ? _t('（まもなく自動保存）') : waiting ? _t('（Ctrl+S で保存）') : '')
+    : S.savedAt ? `${S.autoSavedAt === S.savedAt ? _t('自動保存') : _t('保存済み')} ${fmt(S.savedAt)}${file ? ' ・ ' + file : ''}` : file ? _t('保存先: ') + file
+    : warn ? _t('上書き保存できないブラウザです') : '';
+  el.title = noFs ? _t('このブラウザでは、保存するとダウンロードになります。開いているファイルに上書きするには、Edge か Chrome で開いてください。')
+    : file + (auto ? _t('（自動保存: 入力が止まると上書きします）') : waiting ? _t('（上書きの許可がまだないので、自動保存は止まっています。Ctrl+S で保存して許可すると、自動保存に戻ります）') : '');
 }
 function renderTabs() {
   const onSheet = S.view === 'sheet' || S.view === 'board';
@@ -3460,7 +3472,7 @@ async function save(saveAs) {
     if (!(await checkSize(blob))) return;
     const w = await h.createWritable();
     await w.write(blob); await w.close();
-    S.handle = h; S.lastMod = (await h.getFile()).lastModified;
+    S.handle = h; S.perm = true; S.lastMod = (await h.getFile()).lastModified;
     S.dirty = false; S.savedAt = now();
     rememberHandle(); dropDraft();
     if (n) render(); else renderStatus();
@@ -3475,9 +3487,18 @@ async function save(saveAs) {
  * どちらも JSON を少しずつ作るので、何十万行あっても画面は止まらない。作っている途中で編集が入ったら捨てて、次の機会にやり直す。 */
 const AUTO_IDLE = 4000;
 const hasPerm = async h => { try { return (await h.queryPermission({ mode: 'readwrite' })) === 'granted'; } catch { return false; } };
+// 保存先に今すぐ書けるか（上書きの許可があるか）を確かめて、状態の表示に反映する
+async function checkPerm() {
+  const h = S.handle;
+  if (!h) return;
+  const p = await hasPerm(h);
+  if (S.handle === h && p !== (S.perm !== false)) { S.perm = p; renderStatus(); }
+}
 async function autoTick() {
   if (!S.dirty || S.saving || S.editing || S.bEdit || document.querySelector('.dlg-back') || performance.now() - S.lastEdit < AUTO_IDLE) return;
-  if (S.auto && S.handle && window.showSaveFilePicker && await hasPerm(S.handle)) await autoSave();
+  const perm = S.auto && S.handle && window.showSaveFilePicker ? await hasPerm(S.handle) : null;
+  if (perm !== null && perm !== (S.perm !== false)) { S.perm = perm; renderStatus(); }
+  if (perm) await autoSave();
   else if (S.editSeq !== S.draftSeq) await saveDraft();
 }
 async function autoSave() {
@@ -3565,7 +3586,7 @@ async function watchFile() {
 function docMaxTs(d) { let m = 0; for (const k of COLLS) for (const o of d[k]) for (const t of Object.values(o.ts || {})) if (t > m) m = t; return m; }
 function loadDoc(d, handle) {
   D = d;
-  S.handle = handle || null; S.dirty = false; S.savedAt = null; S.lastMod = 0; S.autoSavedAt = null; S.draftSeq = S.editSeq; S.qPrev = null;
+  S.handle = handle || null; S.perm = undefined; S.dirty = false; S.savedAt = null; S.lastMod = 0; S.autoSavedAt = null; S.draftSeq = S.editSeq; S.qPrev = null;
   S.cf = {}; S.cfVer++; S.fold = {}; S.foldVer++; S.sort = null; S.sortVer++;
   S.sheet = (caseSheets()[0] || sheets()[0]).id; S.run = runs()[0].id; S.r = 0; S.c = 1; S.curId = null;
   S.view = 'sheet'; S.q = ''; S.vf = ''; S.bSel = null; S.bEdit = null; S.ar = 0; S.ac = 1;
@@ -3575,6 +3596,7 @@ function loadDoc(d, handle) {
   S.docMax = docMaxTs(D);
   if (S.docMax > CLOCK) CLOCK = S.docMax;
   $('#gridwrap').scrollTo(0, 0); render(); focusMain();
+  if (handle) checkPerm();
 }
 const notBook = name => toast(_t('{0} は testbook のファイルではありません', name), 'err');
 async function openFile() {
@@ -3624,12 +3646,25 @@ function idb(store, mode, fn) {
     };
   });
 }
-function rememberHandle() { idb('handles', 'readwrite', st => st.put(S.handle, D.meta.id)).catch(() => {}); }
+// 保存先は試験の ID ごとに覚え、どのページ（開いたファイル）から保存したかも一緒に覚える
+function rememberHandle() { return idb('handles', 'readwrite', st => st.put({ h: S.handle, page: location.href }, D.meta.id)).catch(() => {}); }
 async function restoreHandle() {
   try {
-    const h = await idb('handles', 'readonly', st => st.get(D.meta.id));
-    if (h && !S.handle) { S.handle = h; renderStatus(); }
+    const v = await idb('handles', 'readonly', st => st.get(D.meta.id));
+    const h = v && (v.h || v);  // 0.1.0 は保存先だけを覚えていた
+    if (h && !S.handle && sameFile(h, v.page)) { S.handle = h; renderStatus(); checkPerm(); }
   } catch { /* 覚えていなくても初回の保存で選べばよい */ }
+}
+// 覚えている保存先が、今開いているファイルそのものか。試験のファイルをコピーして開いたとき
+// （「… - コピー.html」や、同じ名前で別のフォルダ）に、Ctrl+S や自動保存が元のファイルへ書かないようにする。
+// 保存先のハンドルは場所を教えてくれないので、名前と、前に保存したページの場所で見分ける。
+// ひな形の testbook.html から別の名前で保存した試験は、保存したページの名前が違うので、そのまま使う
+const pageName = u => { try { return decodeURIComponent(new URL(u).pathname.split('/').pop()); } catch { return ''; } };
+function sameFile(h, page) {
+  if (location.protocol !== 'file:') return true;
+  const cur = pageName(location.href);
+  if (h.name !== cur) return false;
+  return !page || page === location.href || pageName(page) !== cur;
 }
 
 /* ---------- 操作 ---------- */
@@ -3664,8 +3699,10 @@ const actions = {
     showPop(btn, `<div class="pop-h">testbook ${APP_VERSION}</div><button data-act="saveAs">${_t('名前を付けて保存')}</button><button data-act="autoToggle">${_t('自動保存（入力が止まったら上書き）')}${S.auto ? '<span>✓</span>' : ''}</button>
       <button data-act="csv">${_t('このシートを CSV で書き出す')}</button><button data-act="report">${_t('報告書を印刷（PDF）…')}</button><hr>
       <button data-act="issueUrl">${_t('不具合票のリンク…')}${D.meta.issueUrl ? '<span>✓</span>' : ''}</button><button data-act="histClearAll">${_t('結果の履歴をすべて消す…')}</button><hr>
-      <button data-act="lang">${LANG === 'ja' ? 'English' : '日本語'}</button><button data-act="newDoc">${_t('新しい試験ファイル')}</button>`);
+      <button data-act="lang">${LANG === 'ja' ? 'English' : '日本語'}</button><button data-act="newDoc">${_t('新しい試験ファイル')}</button><hr>
+      <button data-act="help">${_t('使い方（GitHub）')}</button>`);
   },
+  help() { hidePop(); window.open(LANG === 'ja' ? REPO_URL + '/blob/main/README.ja.md' : REPO_URL + '#readme', '_blank', 'noopener'); },
   saveAs: () => save(true),
   csv: () => { hidePop(); exportCsv(); },
   report: printReport,

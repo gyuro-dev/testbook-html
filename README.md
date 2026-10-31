@@ -9,33 +9,35 @@ It has what testing needs: results per run, evidence boards, merging other peopl
 
 **No internet connection and no external libraries.** It runs fully offline, also in closed networks, and your data never leaves the file and your browser.
 
-![The case table with the detail pane](docs/images/table-en.png)
+![The case table with the detail panel](docs/images/table-en.png)
 
 ## Try it
 
 - **In the browser right now**: [open testbook](https://gyuro-dev.github.io/testbook-html/testbook.html) and press "Try the sample". Nothing is sent anywhere; the page is just the same single file.
-- **Ready-made samples**: [shop-en.html](https://gyuro-dev.github.io/testbook-html/samples/shop-en.html) (the built-in sample), [api-en.html](https://gyuro-dev.github.io/testbook-html/samples/api-en.html) (a second, smaller test) and [dashboard-en.html](https://gyuro-dev.github.io/testbook-html/samples/dashboard-en.html) (cards with the progress of the other two). Japanese versions are next to them in [`samples/`](samples/).
-- **For real work**: download `testbook.html` from the [releases](https://github.com/gyuro-dev/testbook-html/releases), put it where you keep your test documents, and open it in Edge or Chrome. Nothing to install.
+- **Ready-made samples**: [shop-en.html](https://gyuro-dev.github.io/testbook-html/samples/shop-en.html) (the built-in sample), [api-en.html](https://gyuro-dev.github.io/testbook-html/samples/api-en.html) (a second, smaller test) and [dashboard-en.html](https://gyuro-dev.github.io/testbook-html/samples/dashboard-en.html) (cards with the progress of the other two). The Japanese versions are in the [list of samples](samples/README.md).
+- **For real work**: download `testbook.html` from the [releases](https://github.com/gyuro-dev/testbook-html/releases) and open it in Edge or Chrome. Nothing to install. One test is one file: keep `testbook.html` as an empty template, open it whenever you start a test, and the first save creates that test's file.
 
 ## Quick start
 
 1. **Write the cases.** Type into the table, or copy a table from another document and press `Ctrl+V` on it. Columns are yours to change from the column header.
-2. **Set the results.** In the result column press `1` OK, `2` NG, `3` Hold, `4` N/A. Tester and date are filled in for you.
+2. **Set the results.** In the result column press `1` OK, `2` NG, `3` Hold, `4` N/A. Tester and date are filled in for you (you are asked for your name once).
 3. **Attach evidence.** Take a screenshot and press `Ctrl+V` on the row. It lands on that row's evidence board, where you can add red frames, arrows, numbered markers and notes.
-4. **Save.** `Ctrl+S`. The first time you choose the file (pick the open file itself to overwrite it); from then on it saves in place, and it also saves by itself when you stop typing.
-5. **Share and report.** Send the file, or merge a colleague's copy with "Import". The "Summary" tab shows the progress, and "⋯ → Print report (PDF)…" prints the tables and boards.
+4. **Save.** Give the test a title at the top left, press `Ctrl+S` and save into the folder with your test documents. You choose the location only the first time, and the file name is the title. From then on it saves in place, and it also saves by itself when you stop typing. `testbook.html` stays empty, ready for the next test.
+5. **Share and report.** Send the saved file. To have others fill it in too, hand out this file and merge the copies that come back with "Import". The "Summary" tab shows the progress, and "⋯ → Print report (PDF)…" prints the tables and boards.
 
 ![An evidence board with a frame, an arrow and a note](docs/images/evidence-en.png)
 
-The UI is in English or Japanese. It follows the browser language, and "⋯ → 日本語 / English" switches it on the spot (remembered in that browser). The names a new file starts with (columns such as "Category", the "Test cases" sheet, "Run 1", the title) follow the language too. Names and text you type stay as they are.
+The UI is in English or Japanese. It follows the browser language, and "⋯ → 日本語 / English" switches it on the spot. The names a new file starts with (columns such as "Category", "Run 1") follow the language too; names and text you type stay as they are.
 
 ## Good to know
 
-- **Browsers**: overwriting the file works in Edge and Chrome. Other browsers download a copy when you save.
-- **First save**: you are asked where to save. Choosing the file you opened overwrites it. After that it saves directly.
-- **File size**: many images make a large file. When it no longer fits in an e-mail, hand it over through a shared folder. For big logs or videos, write the path as text instead.
-- **Drafts**: before you have saved, unsaved changes are kept inside the browser and offered back the next time. This works only in the same browser on the same PC, and clearing the browser's data clears the drafts too.
-- **File format**: this is the first public version (0.1). Files saved now will keep opening in later versions; older formats are converted when opened. Files from the very first prototype (format version 1) cannot be opened.
+- **Browsers**: overwriting the file works in Edge and Chrome. Other browsers show "This browser cannot overwrite files" at the top and download a copy when you save. If your default browser is a different one, right-click the file and choose "Open with" → Edge or Chrome.
+- **Permission to overwrite**: after the browser is restarted, the first save may ask whether the page may edit the file. Until you allow it, autosave does not overwrite the file: the top bar says "save with Ctrl+S", and changes are kept as a draft in the browser.
+- **Copied files**: when you open a copy of a test file (copied or renamed), the first save asks where to save again, so the original file is never overwritten by surprise.
+- **Autosave and drafts**: "⋯ → Autosave (overwrite when typing stops)" turns autosave on or off. Changes not yet saved are kept as a draft inside the browser and offered back the next time. This works only in the same browser on the same PC, and clearing the browser's data clears the drafts too.
+- **Several people**: everyone starts from the same test file (one somebody saved and handed out). Files that each person started from an empty `testbook.html` are different tests: importing one only adds its sheets, and the results are not merged.
+- **File size**: many images make a large file. When it no longer fits in an e-mail, hand it over through a shared folder. For big logs or videos, write the path as text instead. On a PC with 8 GB of memory, stay under about 1 GB for image-heavy tests and about 300,000 rows for row-heavy ones.
+- **Moving to a new version**: a test file carries the app inside, so it keeps running the version it was saved with. To move it to a new version, open the new `testbook.html`, choose the test file with "Open", and save. Files saved with this version (0.1) will keep opening in later versions.
 - **Not yet**: board zoom, selecting several board elements at once, and importing spreadsheet files directly (copy the table and press `Ctrl+V` instead).
 
 ## License
@@ -48,47 +50,40 @@ The UI is in English or Japanese. It follows the browser language, and "⋯ → 
 
 - **Case sheets**: a table. One row is one test case.
 - **Free sheets**: a board you can put anything on. Use it for the test description, the environment, preconditions, metrics and so on.
-- Right-click a sheet tab to give it a colour.
+- Add a sheet with "＋" right of the tabs. Right-click a sheet tab to give it a colour.
 
 ### Case sheets
 
+The most used operations come first. All keys are listed under "Keys" below.
+
+- **Pasting tables**: copy a table from another document and press `Ctrl+V`: the rows are pasted as cases. "OK", "NG", "Hold" and "N/A" (or the Japanese words) land in the result column with tester, date and history.
+- **Results**: in the result column `1` OK, `2` NG, `3` Hold, `4` N/A, `0` back to not run. With several rows selected, they all get the result. N/A rows turn grey, held rows yellow. Tester and date are filled in automatically; hand-edited values are not overwritten when the result is set again.
+- **Result history**: every change of a result records who, when and to what (the last 10 per result), shown in the detail panel under "Result history". Hovering a cell shows when it was last changed.
+  - Typos are not recorded: if the same person sets the result again within 2 minutes the previous entry is rewritten, and returning to the earlier value removes it.
+  - History can be deleted per entry, per case ("Clear history") or for the whole document ("⋯ → Clear all result history…"). Deletions are remembered, so merging someone else's file does not bring entries back.
+  - An entry is about 50 bytes and a result keeps at most 10, so the file does not bloat.
+- **Runs**: "Run 1", "Regression" and so on keep separate results when the same cases are tested again. If you test once, ignore them. When adding a run you choose what to do with the previous run's results: carry nothing over, "only NG and not-run" (previous OK / N/A rows become N/A with a remark), or carry everything over.
+- **Deleting a run**: "⋯" next to the run selector deletes the current run together with its results and evidence boards (`Ctrl+Z` undoes it). The last run cannot be deleted.
+- **Comments**: review remarks on a case or a cell. Write them in the detail panel under "Comments" (`Ctrl+Enter`, or `Ctrl+M` to jump to the box). Cells with open comments get a corner mark. Tick the box when it is dealt with, and follow up with the "Has open comments" filter.
+- **Detail panel**: the right side shows the selected row's details, result, evidence board and comments. Close it with "×" and reopen it with "Detail panel" in the toolbar.
 - **Columns** are yours to change. Click a column header for name, type, order, add, delete, merged display, freeze, filter by value and sort. Drag the right edge of a header to resize. Hover the gap between headers, or between rows in the No column, and a round "＋" appears to insert a column or row there.
   - Column types: text, level (a grouping column), select, date, number, check, ID.
   - Result columns: result, tester, date, remark, evidence. These hold a separate value per run.
   - **ID column**: numbers like `TC-001` are assigned automatically as rows are added. Moving or deleting rows never changes a number, so requirements and bug tickets can point at "this case". Prefix and digits are per column, and there is "Renumber IDs from the top". If two people add rows at the same time and get the same number, the later one is renumbered when the files are merged, and you are told.
-- **Detail pane**: the right side shows the selected row's details, result, evidence board and comments. Close it with "×" and reopen it with "Detail panel" in the toolbar.
 - **Moving rows and columns**: drag a column header sideways to move the column. To move rows, select them in the No column, then drag them by the No column. `Alt+↑↓` moves the current row. Rows cannot be moved while the table is sorted.
+- **Range selection**: `Shift+arrows`, `Shift+click`, or drag. Click or drag in the No column to select whole rows. A copied range is tab-separated text, which pastes into other tables as rows and columns. A single pasted value fills the whole selected range.
+- **Formatting**: bold (`Ctrl+B`), strike-through (`Ctrl+5`) and text colour for the selected cells. Open a cell with `Enter`, `F2` or a double-click to format only the selected characters.
 - **Filters**: besides the result (OK / NG / Hold / N/A / not run) you can show "OK without evidence", "without evidence", "with evidence", and, with two or more runs, "NG in the previous run" and "NG in previous run and not yet OK", plus rows with comments. "Filter by value…" in a column header lists the values in that column with their counts, and you tick the ones to show. All of these combine with search (`Ctrl+F`).
-- **Folding and contents**: the first row of each top-level group (the first level column) shows ▾; click it to fold the group (only its first row stays, with the count). "Contents" in the toolbar lists the groups, jumps to one, and folds or unfolds all. Fold state is not saved in the file; the browser remembers it.
-- **Replace**: `Ctrl+H` (or "Replace" in the toolbar) replaces text in the text columns of the visible rows, or only inside the selected range. It is one undo step. Cells with per-character formatting keep it.
 - **Sort**: "Sort ascending" / "Sort descending" in a column header. Display only; the row order in the file is unchanged ("Sorted … ×" in the toolbar restores it). Numbers compare as numbers and empty cells come last. Combines with filters and search.
+- **Replace**: `Ctrl+H` (or "Replace" in the toolbar) replaces text in the text columns of the visible rows, or only inside the selected range. It is one undo step. Cells with per-character formatting keep it.
+- **Folding and contents**: the first row of each top-level group (the first level column) shows ▾; click it to fold the group (only its first row stays, with the count). "Contents" in the toolbar lists the groups, jumps to one, and folds or unfolds all. Fold state is not saved in the file; the browser remembers it.
 - **Merged display**: a cell with the same value as the row above is drawn as if merged. Level columns only merge when every level to their left is also the same (the same group), so merging never crosses a group boundary. It can be switched off per column.
 - **Frozen columns**: by default No and the leading level columns stay put when scrolling sideways. Change it with "Freeze columns up to here" in a column header.
-- **Keys**
-  - `Enter` to edit, `Alt+Enter` for a line break.
-  - `Ctrl+Enter` adds a row below (inheriting the levels), `Ctrl+Shift+D` duplicates the row.
-  - `Ctrl+Z` undoes, `Ctrl+Y` redoes.
-- **Range selection**: `Shift+arrows`, `Shift+click`, or drag. Click or drag in the No column to select whole rows. `Ctrl+A` selects everything.
-  - `Ctrl+C` / `Ctrl+X` copy or cut the range as tab-separated text, which pastes into other tables as rows and columns.
-  - `Ctrl+V` pastes. A single value fills the whole selected range.
-  - `Delete` clears the range. `Ctrl+D` fills down.
-  - `Ctrl+Enter` while editing puts the same value into the whole range.
-  - Select several rows in the result column and press `1` to `4` to set results in bulk.
-- **Pasting tables**: copy a table from another document and press `Ctrl+V`: the rows are pasted as cases. "OK", "NG", "Hold" and "N/A" (or the Japanese words) land in the result column with tester, date and history.
-- **Results**: in the result column `1` OK, `2` NG, `3` Hold, `4` N/A, `0` back to not run. N/A rows turn grey, held rows yellow. Tester and date are filled in automatically; hand-edited values are not overwritten when the result is set again.
-- **Formatting**: bold (`Ctrl+B`), strike-through (`Ctrl+5`) and text colour for the selected cells. Open a cell with `Enter`, `F2` or a double-click to format only the selected characters.
 - **Remark and issue links**: set a URL template in "⋯ → Issue tracker link…" (for example `https://github.com/example/shop/issues/{n}`, or `.../browse/{key}` for Jira) and `#128` or `PROJ-12` in remarks and other cells become links. URLs are always links.
-- **Result history**: every change of a result records who, when and to what (the last 10 per result), shown in the detail pane under "Result history". Hovering a cell shows when it was last changed.
-  - Typos are not recorded: if the same person sets the result again within 2 minutes the previous entry is rewritten, and returning to the earlier value removes it.
-  - History can be deleted per entry, per case ("Clear history") or for the whole document ("⋯ → Clear all result history…"). Deletions are remembered, so merging someone else's file does not bring entries back.
-  - An entry is about 50 bytes and a result keeps at most 10, so the file does not bloat.
-- **Comments**: review remarks on a case or a cell. Write them in the detail pane under "Comments" (`Ctrl+Enter`, or `Ctrl+M` to jump to the box). Cells with open comments get a corner mark. Tick the box when it is dealt with, and follow up with the "Has open comments" filter.
-- **Runs**: "Run 1", "Regression" and so on keep separate results when the same cases are tested again. If you test once, ignore them. When adding a run you choose what to do with the previous run's results: carry nothing over, "only NG and not-run" (previous OK / N/A rows become N/A with a remark), or carry everything over.
-- **Deleting a run**: "⋯" next to the run selector deletes the current run together with its results and evidence boards (`Ctrl+Z` undoes it). The last run cannot be deleted.
 
 ### Evidence boards
 
-A free-form board, one per case per run. Click the evidence column to open it.
+A free-form board, one per case per run. The "Evidence" column of the table shows how many things are on that row's board; click it to open the board.
 
 - Paste screenshots with `Ctrl+V` (they are compressed automatically). `Ctrl+V` on the table also lands in that row's board.
 - Double-click an empty spot to write text. "Heading" and "Log / code" (monospaced) styles are available. Select a text box for bold, strike-through, colour, a border and "Copy text"; while editing, formatting applies to the selected characters only.
@@ -104,23 +99,66 @@ A free-form board, one per case per run. Click the evidence column to open it.
 
 - The "Summary" tab shows counts per sheet, top-level group, run and tester, how many rows have evidence (including "OK without evidence"), with two or more runs "what the rows that were NG last run are now", progress per day (chart and table), and the number of open comments.
 - "⋯ → Print report (PDF)…" builds a report with the tables, the summary, the evidence boards (optional) and the open comments, and opens the browser's print dialog. Choose "Save as PDF" for a PDF.
-- Drop other testbook files onto a free sheet, or use "＋ Other test metrics", and each becomes a card with that document's progress per run. Dropping the same file again refreshes the numbers. "＋ Grand total" sums them all. With one file per feature, this gives you a one-file dashboard.
+- Drop other testbook files onto a free sheet, or use "＋ Other test metrics", and each becomes a card with that document's progress per run. Dropped onto the table instead, a file is imported, not made into a card. Dropping the same file again refreshes the numbers. "＋ Grand total" sums them all. With one file per feature, this gives you a one-file dashboard.
 - "⋯ → Export this sheet as CSV" exports the current sheet with the current run's results.
 
 ### Working with several people
 
-Every object has an ID and every value (field) remembers when it was written. Merging keeps the newer value per field, nothing more.
+First, one person creates the test file, saves it and hands it out to everyone. Files that each person started from an empty `testbook.html` are different tests: importing one asks "Import its sheets?", and doing so only adds sheets; the results are not merged.
 
-- **Passing files around**: drag the file you received onto the window (or use "Import"). The same thing is never added twice, and you are told what came in ("items 5, results 30, evidence 12, comments 2").
-- **The same file on a shared folder**: right before saving, the latest content on disk is read and merged, then written (autosave does the same). While the file is open, other people's saves are picked up every 20 seconds.
+- **Passing files around**: drag the file you received onto the table (or use "Import"). The same thing is never added twice, and you are told what came in ("items 5, results 30, evidence 12, comments 2").
+- **The same file on a shared folder**: everyone opens that file, and when the first save asks where to save, picks that same file on the shared folder. Right before saving, the latest content on disk is read and merged, then written (autosave does the same). While the file is open, other people's saves are picked up every 20 seconds.
 - Result histories are merged in time order, comments from both sides are kept, and colliding ID numbers are reassigned.
 
-There is no merge screen, but **data is never dropped silently**.
+Every object has an ID and every value (field) remembers when it was written. Merging keeps the newer value per field, nothing more. There is no merge screen, but **data is never dropped silently**.
 
 - **Two people edited the same cell separately**: the newer value is shown and the other is kept as a conflict. "⚠ Conflicts N" appears at the top and lets you choose. Editing after seeing the other person's value is not a conflict.
 - **A deleted row or run later got a result or evidence**: it is kept and reported, with "Delete" or "Keep".
 - **A PC's clock is off**: your changes are always timestamped after any timestamp you have seen from someone else.
 - **Column settings** merge per column. Two people changing different columns keeps both.
+
+### Keys
+
+On a Mac, press `⌘` instead of `Ctrl`.
+
+**Table**
+
+| Key | Action |
+|---|---|
+| `1` `2` `3` `4` / `0` | Set the result to OK, NG, Hold, N/A / back to not run (all selected rows at once) |
+| `Enter`, `F2`, double-click | Edit the cell |
+| `Alt+Enter` | Line break inside the cell being edited |
+| `Ctrl+Enter` | Add a row below (inheriting the levels). While editing, put the same value into the whole selected range |
+| `Ctrl+Shift+D` | Duplicate the row |
+| `Ctrl+Delete` | Delete the row |
+| `Alt+↑` / `Alt+↓` | Move the current row up or down |
+| `Home` / `End` | First or last column of the row (with `Ctrl`, of the table) |
+| `Shift+arrows`, `Ctrl+A` | Select a range, select everything |
+| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | Copy, cut, paste (an image goes to the row's evidence board) |
+| `Delete` | Clear the selected range |
+| `Ctrl+D` | Fill down |
+| `Ctrl+B` / `Ctrl+5` | Bold, strike-through |
+| `Ctrl+F` / `Ctrl+H` | Search, replace |
+| `Ctrl+M` | Jump to the comment box |
+
+**Evidence board**
+
+| Key | Action |
+|---|---|
+| `Ctrl+V` | Paste a screenshot or a table |
+| Double-click | Write text on an empty spot |
+| `Ctrl+C` / `Ctrl+X` | Copy or cut the selected elements |
+| `Delete` / `Ctrl+D` | Delete or duplicate the selected elements |
+| Arrow keys | Move the selected elements (further with `Shift`) |
+| Drag with `Shift` | Keep an arrow or line horizontal or vertical |
+| `Esc` | Back to the table when nothing is selected |
+
+**Everywhere**
+
+| Key | Action |
+|---|---|
+| `Ctrl+Z` / `Ctrl+Y` | Undo, redo |
+| `Ctrl+S` | Save |
 
 ## For developers
 
@@ -176,7 +214,7 @@ Numbers measured with `bench/bench.js` in a Chromium-based browser. A row has th
 
 #### Time and memory in real Edge
 
-Files were generated with PowerShell and opened in a headless Edge with a throw-away profile (a PC with 128 GB of memory). "Edge total" is the memory of all of that Edge's processes. Measured again before the first release (2026-10-31): compared with the version before the English UI, drag-to-move and run deletion, every number is the same within noise.
+Measured with 0.1.0 (2026-10-31). Files were generated with PowerShell and opened in a headless Edge with a throw-away profile (a PC with 128 GB of memory). The data is made differently from the tables above, and each image is a JPEG of about 400 KB, so the same number of rows or images gives a different file size. "Edge total" is the memory of all of that Edge's processes.
 
 | File | Size | Open | Edge total (peak) | Edge total (settled) | of which JavaScript | Edit | Set a result | One scroll | Open a board | Prepare save |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -206,7 +244,7 @@ bash test/run.sh                                          macOS / Linux
 ```
 
 - `-Filter マージ` (`--filter マージ`) runs only the tests whose name contains the text (test names are in Japanese). `-Show` (`--show`) opens a visible browser with the developer tools. `-Browser edge` or `TB_BROWSER=path` picks the browser.
-- When everything passes it prints `174 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
+- When everything passes it prints `178 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
 - `-Update` (`--update`) rewrites the golden files in `test\golden\` and the files in `samples\` after an intentional change; `git diff` then shows what changed.
 
 #### How it works
