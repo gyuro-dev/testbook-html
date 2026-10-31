@@ -239,4 +239,25 @@
     eq(await restored(), cur, '0.1.0 が覚えた保存先（ハンドルだけ）も、名前が合えば使う');
     S.handle = null;
   });
+
+  test('保存: ほかの人が試験のファイルを初めて保存するとき、保存画面の名前の欄に開いているファイルの名前を入れる', async () => {
+    const names = [], asked = [], h = new FakeHandle('x.html');
+    window.showSaveFilePicker = async o => { names.push(o.suggestedName); return h; };
+    window.dialog = async o => { asked.push(o.message); return true; };
+    try {
+      loadDoc(newDoc()); snap(); setF(D.meta, 'title', 'ログイン試験');
+      PAGE_DOC = { id: D.meta.id, name: 'ログイン試験_第2版.html' };
+      localStorage.removeItem('testbook.saveHint');
+      await save();
+      eq(names, ['ログイン試験_第2版.html'], '題名ではなく、開いているファイルの名前');
+      ok(asked[0].includes('今開いているこのファイル（ログイン試験_第2版.html）を選ぶと'), '案内にもファイル名: ' + asked[0].split('\n')[2]);
+      await save(true);
+      eq(names[1], 'ログイン試験.html', '「名前を付けて保存」は題名から');
+      loadDoc(newDoc()); snap(); setF(D.meta, 'title', '新しい試験');
+      localStorage.removeItem('testbook.saveHint');
+      await save();
+      eq(names[2], '新しい試験.html', 'ひな形や新しい試験は、今までどおり題名から');
+      ok(asked[1].includes('今開いているこのファイルを選ぶと'), '案内にファイル名は出さない');
+    } finally { PAGE_DOC = null; }
+  });
 })();

@@ -50,8 +50,8 @@
     eq(bad, [], '括弧の途中で改行している行');
   });
 
-  test('文書: LICENSE があり、README の日英からリンクしている', () => {
-    for (const name of ['README.md', 'README.ja.md']) ok(doc(name).includes('](LICENSE)'), name + ' から LICENSE へのリンク');
+  // README にライセンスの節は置かない（GitHub がリポジトリの画面に出すので）
+  test('文書: LICENSE があり、MIT ライセンス', () => {
     ok(/^MIT License/.test(doc('LICENSE')), 'LICENSE は MIT');
   });
 

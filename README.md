@@ -40,10 +40,6 @@ The UI is in English or Japanese. It follows the browser language, and "⋯ → 
 - **Moving to a new version**: a test file carries the app inside, so it keeps running the version it was saved with. To move it to a new version, open the new `testbook.html`, choose the test file with "Open", and save. Files saved with this version (0.1) will keep opening in later versions.
 - **Not yet**: board zoom, selecting several board elements at once, and importing spreadsheet files directly (copy the table and press `Ctrl+V` instead).
 
-## License
-
-[MIT](LICENSE). You may use, change and redistribute testbook, also commercially. The test files you create with it are yours and can be handed to anyone; each one carries a copy of the app, and that copy can be distributed under the MIT license as well (the copyright and license notice is inside the app).
-
 ## Guide
 
 ### Two kinds of sheets
@@ -107,7 +103,7 @@ A free-form board, one per case per run. The "Evidence" column of the table show
 First, one person creates the test file, saves it and hands it out to everyone. Files that each person started from an empty `testbook.html` are different tests: importing one asks "Import its sheets?", and doing so only adds sheets; the results are not merged.
 
 - **Passing files around**: drag the file you received onto the table (or use "Import"). The same thing is never added twice, and you are told what came in ("items 5, results 30, evidence 12, comments 2").
-- **The same file on a shared folder**: everyone opens that file, and when the first save asks where to save, picks that same file on the shared folder. Right before saving, the latest content on disk is read and merged, then written (autosave does the same). While the file is open, other people's saves are picked up every 20 seconds.
+- **The same file on a shared folder**: everyone opens that file, and when the first save asks where to save, picks that same file on the shared folder. The browser on each PC remembers the location, so each PC asks only once. The name box already holds the name of the opened file: go to the shared folder, press Save, and answer Yes when asked to replace it. Right before saving, the latest content on disk is read and merged, then written (autosave does the same). While the file is open, other people's saves are picked up every 20 seconds.
 - Result histories are merged in time order, comments from both sides are kept, and colliding ID numbers are reassigned.
 
 Every object has an ID and every value (field) remembers when it was written. Merging keeps the newer value per field, nothing more. There is no merge screen, but **data is never dropped silently**.
@@ -244,7 +240,7 @@ bash test/run.sh                                          macOS / Linux
 ```
 
 - `-Filter マージ` (`--filter マージ`) runs only the tests whose name contains the text (test names are in Japanese). `-Show` (`--show`) opens a visible browser with the developer tools. `-Browser edge` or `TB_BROWSER=path` picks the browser.
-- When everything passes it prints `178 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
+- When everything passes it prints `179 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
 - `-Update` (`--update`) rewrites the golden files in `test\golden\` and the files in `samples\` after an intentional change; `git diff` then shows what changed.
 
 #### How it works

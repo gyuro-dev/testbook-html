@@ -14,6 +14,7 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 ### Changed
 
 - The README explains how to start a test file, how several people start from the same file, how to move a file to a new version, and lists the keys in one place.
+- When someone saves a test file they received for the first time, the save dialog suggests the name of the file they opened (not a name made from the title), and the notice before it names that file, so picking the file to overwrite is easier.
 
 ### Fixed
 

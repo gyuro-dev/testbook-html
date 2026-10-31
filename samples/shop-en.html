@@ -529,6 +529,7 @@ const EN = {
   '保存先: ': 'Saved to: ',
   '保存先の選択': 'Choose where to save',
   '保存先を選ぶ': 'Choose location',
+  '（{0}）': ' ({0})',
   '保存済み': 'Saved',
   '保留': 'Hold',
   '修正後の再試験や回帰試験など、同じ試験項目をもう一度試験するときに使います。結果とエビデンス票は実施回ごとに分かれます。': 'For testing the same items again, such as a retest after a fix or a regression run. Results and evidence boards are kept per run.',
@@ -646,7 +647,7 @@ const EN = {
   '桁数': 'Digits',
   '検索する文字': 'Find',
   '検索（Ctrl+F）': 'Search (Ctrl+F)',
-  '次の画面で保存先を選びます。\n\n・今開いているこのファイルを選ぶと、そのファイルに上書きします（共有フォルダのファイルを更新したいときはこちら）。\n・別の名前を付けると、新しいファイルとして保存します。\n\n2回目からは確認せずに同じファイルへ上書きします。この案内は最初の1回だけ表示します。': 'Next, choose where to save.\n\n・Pick this very file to overwrite it (use this to update a file in a shared folder).\n・Pick a different name to create a new file.\n\nFrom then on it saves there without asking. This notice appears only once.',
+  '次の画面で保存先を選びます。\n\n・今開いているこのファイル{0}を選ぶと、そのファイルに上書きします（共有フォルダのファイルを更新したいときはこちら）。\n・別の名前を付けると、新しいファイルとして保存します。\n\n2回目からは確認せずに同じファイルへ上書きします。この案内は最初の1回だけ表示します。': 'Next, choose where to save.\n\n・Pick this very file{0} to overwrite it (use this to update a file in a shared folder).\n・Pick a different name to create a new file.\n\nFrom then on it saves there without asking. This notice appears only once.',
   '次の項目': 'Next item',
   '残す': 'Keep',
   '消去する': 'Clear',
@@ -3442,6 +3443,10 @@ async function checkSize(blob) {
   return true;
 }
 const fileName = () => (dn(D.meta.title) || 'testbook').replace(/[\\/:*?"<>|]/g, '_') + '.html';
+// ダブルクリックで開いた試験のファイル（題名のあるもの）。ほかの人が初めて保存するとき、保存画面でそのファイルを選びやすいよう名前の欄に入れる。
+// ひな形（題名のない testbook.html）は入れない。ひな形に上書きしてしまわないように
+let PAGE_DOC = null;
+const pageFile = () => PAGE_DOC && PAGE_DOC.id === D.meta.id ? PAGE_DOC.name : '';
 async function writable(handle) {
   const o = { mode: 'readwrite' };
   return (await handle.queryPermission(o)) === 'granted' || (await handle.requestPermission(o)) === 'granted';
@@ -3461,10 +3466,11 @@ async function save(saveAs) {
     let h = saveAs ? null : S.handle;
     // 初めての保存: ダウンロードフォルダに別名で保存してしまい、共有フォルダの元のファイルが更新されない事故を防ぐために一度だけ案内する
     if (!h && !saveAs && lsGet('testbook.saveHint') !== '1') {
-      if (!(await dialog({ title: _t('保存先の選択'), message: _t('次の画面で保存先を選びます。\n\n・今開いているこのファイルを選ぶと、そのファイルに上書きします（共有フォルダのファイルを更新したいときはこちら）。\n・別の名前を付けると、新しいファイルとして保存します。\n\n2回目からは確認せずに同じファイルへ上書きします。この案内は最初の1回だけ表示します。'), ok: _t('保存先を選ぶ') }))) return;
+      const page = pageFile();
+      if (!(await dialog({ title: _t('保存先の選択'), message: _t('次の画面で保存先を選びます。\n\n・今開いているこのファイル{0}を選ぶと、そのファイルに上書きします（共有フォルダのファイルを更新したいときはこちら）。\n・別の名前を付けると、新しいファイルとして保存します。\n\n2回目からは確認せずに同じファイルへ上書きします。この案内は最初の1回だけ表示します。', page ? _t('（{0}）', page) : ''), ok: _t('保存先を選ぶ') }))) return;
       lsSet('testbook.saveHint', '1');
     }
-    if (!h) h = await showSaveFilePicker({ suggestedName: fileName(), types: FILE_TYPES() });
+    if (!h) h = await showSaveFilePicker({ suggestedName: (!saveAs && pageFile()) || fileName(), types: FILE_TYPES() });
     if (!(await writable(h))) { toast(_t('ファイルへの書き込みが許可されませんでした'), 'err'); return; }
     // 保存先にほかの人が書いた内容があれば、先に合わせてから書く（相手の結果を消さないため）。
     // 前に読み書きしたときから変わっていなければ、読み直さない（大きいファイルで時間がかかるので）
@@ -4466,6 +4472,7 @@ function sampleDoc() {
   for (const s of document.querySelectorAll('script.tb-blob')) { BLOBNODES.set(s.dataset.id, s); s.remove(); }
   captureShell();
   D = normalize(d) || newDoc();
+  if (d && dn(D.meta.title) && location.protocol === 'file:') PAGE_DOC = { id: D.meta.id, name: pageName(location.href) };
   S.me = lsGet('testbook.me') || '';
   S.pane = lsGet('testbook.pane') !== '0';
   S.evInfo = lsGet('testbook.evinfo') !== '0';
