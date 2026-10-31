@@ -205,7 +205,7 @@ body.dragcol,body.dragcol *{cursor:grabbing!important}
 .tx-ed{display:block;width:100%;border:none;outline:none;resize:none;overflow:hidden;background:transparent;padding:4px 6px;font-size:14px;line-height:1.6;min-height:28px}
 .tx-ed.title{font-size:22px;font-weight:700;line-height:1.4}
 .el-image img{display:block;width:100%;height:100%;border:1px solid var(--line);user-select:none;cursor:move}
-.el-marker{border-radius:50%;color:#fff;background:#e03131;display:grid;place-items:center;font-weight:700;font-size:14px;line-height:1;cursor:move;box-shadow:0 1px 3px rgba(0,0,0,.35);user-select:none}
+.el-marker{border-radius:50%;color:#fff;background:#e03131;display:grid;place-items:center;font-weight:700;font-size:14px;line-height:1;cursor:move;box-shadow:0 1px 3px rgba(0,0,0,.35);user-select:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .el-marker.c-blue{background:#1c7ed6} .el-marker.c-green{background:#2b8a3e} .el-marker.c-black{background:#222}
 .el-marker.sel{outline-offset:2px}
 .grid td.cm{background-image:linear-gradient(45deg,transparent 0,transparent calc(100% - 9px),var(--accent) calc(100% - 9px))}
@@ -231,7 +231,8 @@ body.dragcol,body.dragcol *{cursor:grabbing!important}
 #pop .cfb button.primary{color:#fff}
 .el-frame{border:3px solid #e03131;border-radius:3px;pointer-events:none}
 .el-frame.c-yellow{border-color:#f59f00} .el-frame.c-blue{border-color:#1c7ed6}
-.el-frame.c-black{border-color:#111;background:#111;pointer-events:auto;cursor:move} .el-frame.c-white{border-color:#fff;background:#fff;pointer-events:auto;cursor:move}
+/* 黒塗り・白塗りは背景色で隠しているので、印刷の「背景のグラフィック」が外れていても塗りを消さない（消えると下の画像が見える） */
+.el-frame.c-black{border-color:#111;background:#111;pointer-events:auto;cursor:move;-webkit-print-color-adjust:exact;print-color-adjust:exact} .el-frame.c-white{border-color:#fff;background:#fff;pointer-events:auto;cursor:move;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .el-line{pointer-events:none}
 .el-line svg{display:block;overflow:visible}
 .el-line line.hit{stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:move}
@@ -1020,6 +1021,7 @@ function normalize(d) {
   }
   d.elements = keep(d.elements, e => e.deleted || cleanEl(e));
   d.conflicts = keep(d.conflicts, c => c.k == null || safeId(c.k));
+  for (const r of d.records) if (r.verdict && !VMAP[r.verdict]) delete r.verdict;  // 知らない結果の値は、表でも集計でも「未実施」にする
   return d;
 }
 /* ファイルの形:
@@ -1490,7 +1492,9 @@ function blobUrl(e) {
   const data = elData(e);
   const m = /^data:([^;,]*)(;base64)?,/.exec(data.slice(0, 100));
   if (!m || !m[2]) return '';  // 取り込んだファイルの値なので、base64 の data URL 以外（javascript: など）は出さない
-  const bin = atob(data.slice(m[0].length)), arr = new Uint8Array(bin.length);
+  let bin;
+  try { bin = atob(data.slice(m[0].length)); } catch { return ''; }  // 中身が壊れた base64 でも、ボード全体の描画は止めない
+  const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   const url = URL.createObjectURL(new Blob([arr], { type: m[1] }));
   if (hit) URL.revokeObjectURL(hit[1]);
@@ -3068,10 +3072,18 @@ function pasteElements(json) {
   try { list = JSON.parse(json); } catch { return false; }
   if (!Array.isArray(list) || !list.length) return false;
   const owner = boardOwner(), p = nextPos(owner, true);
-  snap();
   let last = null;
-  for (const o of list) last = addEl(owner, o.type, { ...o, x: p.x, y: p.y, by: S.me, at: now() });
-  S.bSel = last && last.id; renderBoard();
+  for (const o of list) {
+    // クリップボードの中身もファイルと同じ検査を通す（ID や置き場所などは持ち込ませない）
+    if (!o || typeof o !== 'object') continue;
+    const { id, ts, bt, updatedAt, deleted, z, ...rest } = o;
+    const props = { ...rest, owner, x: p.x, y: p.y, by: S.me, at: now() };
+    if (!cleanEl(props)) continue;
+    if (!last) snap();
+    last = addEl(owner, props.type, props);
+  }
+  if (!last) return false;
+  S.bSel = last.id; renderBoard();
   return true;
 }
 function onBoardTextKey(ev) {
@@ -3658,13 +3670,31 @@ async function openFile() {
     toast(_t('{0} を開きました', f.name));
   } catch (e) { if (e.name !== 'AbortError') toast(_t('開けませんでした: ') + e.message, 'err'); }
 }
+/* 別の試験ファイルをシートごと取り込むとき: 同じ名前の実施回（「1回目」など）は同じものとして扱う。
+ * 相手の結果・エビデンス票・集計カードをこちらの実施回に付け替えてから合わせるので、「1回目」が2つ並んで
+ * 片方のシートが未実施に見える、ということがない。結果の ID は実施回の ID を含むので、それも付け直す */
+function alignRuns(dst, src) {
+  const mine = new Map(live(dst.runs).map(r => [dn(r.name), r.id])), map = new Map();
+  for (const r of live(src.runs)) { const id = mine.get(dn(r.name)); if (id && id !== r.id) map.set(r.id, id); }
+  if (!map.size) return;
+  const suffix = id => { for (const [from, to] of map) if (id.endsWith('_' + from)) return id.slice(0, -from.length) + to; return id; };
+  src.runs = src.runs.filter(r => !map.has(r.id));
+  for (const r of src.records) { if (r.run && map.has(r.run)) r.run = map.get(r.run); r.id = suffix(r.id); }
+  for (const e of src.elements) {
+    if (e.owner && e.owner.startsWith('ev:')) { const [, item, run] = e.owner.split(':'); if (map.has(run)) e.owner = evOwner(item, map.get(run)); }
+    if (e.run && map.has(e.run)) e.run = map.get(e.run);
+  }
+  for (const c of src.conflicts) { if (c.coll === 'runs' && map.has(c.obj)) c.obj = map.get(c.obj); else if (c.coll === 'records') c.obj = suffix(c.obj); }
+}
 async function importFiles(files) {
   let total = 0;
   for (const f of files) {
     const d = await readBook(f);
     if (!d) { notBook(f.name); continue; }
-    if (d.meta.id !== D.meta.id &&
-      !(await dialog({ title: _t('別の試験ファイルです'), message: _t('「{0}」は、この試験とは別の試験ファイルです。シートごと取り込みますか？', dn(d.meta.title)), ok: _t('取り込む') }))) continue;
+    if (d.meta.id !== D.meta.id) {
+      if (!(await dialog({ title: _t('別の試験ファイルです'), message: _t('「{0}」は、この試験とは別の試験ファイルです。シートごと取り込みますか？', dn(d.meta.title)), ok: _t('取り込む') }))) continue;
+      alignRuns(D, d);
+    }
     const st = mergeInto(D, d);
     total += st.n + st.conflicts;
     toast(st.n || st.conflicts ? _t('{0} を取り込みました: {1}', f.name, mergeMsg(st)) : _t('{0} に新しい内容はありませんでした', f.name));

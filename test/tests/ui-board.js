@@ -61,7 +61,7 @@
 
   test('エビデンス票: 画像を Ctrl+V すると圧縮して置き、Excel の範囲は表に、ログらしい文字はログの枠になる', async () => {
     openBoard();
-    TB.clip(wrap(), 'paste', TB.dt({ files: [await TB.png(2400, 1200)] })); await sleep(300);
+    TB.clip(wrap(), 'paste', TB.dt({ files: [await TB.png(2400, 1200)] })); await TB.until(() => els().length);
     eq([els()[0].type, els()[0].w, els()[0].nw, els()[0].nh], ['image', 720, 1920, 960], '長辺 1920 に縮めて、幅 720 で置く');
     ok(/^data:image\/(webp|jpeg)/.test(els()[0].data), '圧縮した形式');
     ok(els()[0].name.startsWith('スクリーンショット'), 'image.png は「スクリーンショット 日時」');
