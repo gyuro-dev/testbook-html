@@ -9,7 +9,7 @@
     TB.resetClock(); loadDoc(sampleDoc());
     let printed = 0; window.print = () => { printed++; };
     window.dialog = async o => o.inputs ? ['all', '1'] : true;
-    TB.click('[data-act="more"]'); TB.click('#pop [data-act="report"]'); await sleep(120);
+    TB.click('[data-act="more"]'); TB.click('#pop [data-act="report"]'); await TB.until(() => printed);
     eq(printed, 1, '印刷を呼ぶ');
     const r = report();
     ok(r && document.body.classList.contains('printing'), '報告書の節があり、印刷の状態');
