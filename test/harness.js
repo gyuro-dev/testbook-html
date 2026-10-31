@@ -99,6 +99,8 @@
     col: name => sheetCols(curSheet()).find(c => c.name === name),
     item: n => itemsOf(S.sheet)[n - 1],
     realNow, sleep,
+    // 条件が成り立つまで待つ（画像の圧縮など、ランナーの速さで時間が変わる処理のあとに使う）。待ちきれなければそのまま進む
+    async until(cond, ms = 5000) { for (let t = 0; t < ms && !cond(); t += 50) await sleep(50); },
     frame: () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))),
 
     /* ---- 画面の操作。アプリが本物の操作で受け取るのと同じイベントを送る ---- */

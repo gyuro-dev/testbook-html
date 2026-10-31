@@ -11,7 +11,7 @@
     await idb('drafts', 'readwrite', st => st.clear());
     window.showSaveFilePicker = undefined;
     snap(); addItem(); render(); openEvidence(item(1).id);
-    TB.clip(document.querySelector('#boardwrap'), 'paste', TB.dt({ files: [await TB.png(300, 200)] })); await sleep(300);
+    TB.clip(document.querySelector('#boardwrap'), 'paste', TB.dt({ files: [await TB.png(300, 200)] })); await TB.until(() => elementsOf(boardOwner()).length);
     const img = elementsOf(boardOwner()).find(e => e.type === 'image');
     ok(img && img.data.length > 100, '画像がある');
     closeEvidence(); idle(); await autoTick();
