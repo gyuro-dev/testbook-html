@@ -1,0 +1,23 @@
+# 週 1 回、PR では流さない環境（macOS の Chrome）で同じ試験を走らせる。PR は止めない。
+name: Weekly
+on:
+  schedule:
+    - cron: "17 21 * * 0"   # 月曜 06:17 JST
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  macos:
+    name: macOS (Chrome)
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    env:
+      TZ: Asia/Tokyo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: test/run.sh
+        run: bash test/run.sh

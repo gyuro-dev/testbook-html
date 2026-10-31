@@ -1,0 +1,100 @@
+# testbook の自動試験。push と pull request のたびに、Linux の Chrome と Windows の Chrome で test\ の試験を走らせる。
+# どちらのランナーにも Chrome が最初から入っているので、インストールは要らない。
+# 試験が見ていない文書（*.md）だけの変更では、試験のジョブを飛ばす。README.md / README.ja.md / CHANGELOG.md は
+# test/tests/docs.js が版・見出しの構成・件数を確かめるので、これらが変わったら必ず走らせる。必須チェックは最後の「CI result」の 1 つだけ。
+name: CI
+on:
+  push:
+  pull_request:
+
+# トークンは読むだけが既定。必要なジョブにだけ足す
+permissions: {}
+
+jobs:
+  changes:
+    # 何が変わったかを見て、試験が見ていない文書だけなら試験を飛ばす。差分が取れないときは安全側（全部動かす）
+    name: What changed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          code=true
+          if [ -n "$BASE" ] && git cat-file -e "$BASE" 2>/dev/null; then
+            files=$(git diff --name-only "$BASE" HEAD) || files=""
+            # .md 以外か、試験が中身を確かめる文書が 1 つでもあれば走らせる
+            if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -qvE '\.md$' \
+               && ! printf '%s\n' "$files" | grep -qxE 'README\.md|README\.ja\.md|CHANGELOG\.md'; then code=false; fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "code=$code"
+
+  zizmor:
+    # ワークフローの書き方（権限、SHA 固定、インジェクション）を確かめる
+    name: zizmor
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          advanced-security: false
+
+  linux:
+    name: Linux (Chrome)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TZ: Asia/Tokyo   # ゴールデンの日時は日本時間
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: test/run.sh
+        run: bash test/run.sh
+
+  windows:
+    name: Windows (Chrome)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: タイムゾーンを日本時間にする（ゴールデンの日時に合わせる）
+        run: tzutil /s "Tokyo Standard Time"
+      - name: test\run.ps1
+        run: powershell -ExecutionPolicy Bypass -File test\run.ps1
+
+  ci-result:
+    # ruleset で必須にするのはこれ 1 つ。文書だけの PR で試験が飛んだときは通す
+    name: CI result
+    if: always()
+    needs: [changes, zizmor, linux, windows]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -Eq '"result": *"(failure|cancelled)"'; then echo "some job failed"; exit 1; fi
+          echo "all good"

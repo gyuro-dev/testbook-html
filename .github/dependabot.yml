@@ -1,0 +1,12 @@
+# GitHub Actions の版を週 1 回見る。出たばかりの版はすぐ取り込まない（cooldown 7 日。乗っ取られた版が公開直後に取り下げられるのを避ける）
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

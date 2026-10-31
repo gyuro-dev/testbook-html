@@ -1,0 +1,711 @@
+{
+ "format": "testbook",
+ "version": 2,
+ "meta": {
+  "id": "d_x1h7tsqy18",
+  "title": "小さなお店 結合試験",
+  "ts": {},
+  "updatedAt": 1792983600001,
+  "issueUrl": "https://github.com/example/shop/issues/{n}"
+ },
+ "sheets": [
+  {
+   "id": "s_ml81k47vah",
+   "name": "試験の説明",
+   "kind": "free",
+   "order": 0,
+   "columns": [],
+   "ts": {},
+   "updatedAt": 1792983600005
+  },
+  {
+   "id": "s_njuutx881p",
+   "name": "注文",
+   "kind": "cases",
+   "order": 1,
+   "columns": [
+    {
+     "id": "k_f5j7q5lc3q",
+     "name": "大項目",
+     "type": "level",
+     "w": 110
+    },
+    {
+     "id": "k_fk148syai7",
+     "name": "中項目",
+     "type": "level",
+     "w": 110
+    },
+    {
+     "id": "k_pqv33hxctp",
+     "name": "小項目",
+     "type": "level",
+     "w": 110
+    },
+    {
+     "id": "k_nzox0wwcvx",
+     "name": "確認内容",
+     "type": "text",
+     "w": 220
+    },
+    {
+     "id": "k_120joww2lo",
+     "name": "前提条件",
+     "type": "text",
+     "w": 160
+    },
+    {
+     "id": "k_y1go45ipfs",
+     "name": "手順",
+     "type": "text",
+     "w": 200
+    },
+    {
+     "id": "k_pkic4477lf",
+     "name": "期待結果",
+     "type": "text",
+     "w": 200
+    },
+    {
+     "id": "k_klblc2b90v",
+     "name": "結果",
+     "type": "verdict",
+     "w": 76
+    },
+    {
+     "id": "k_8g0a7vih4o",
+     "name": "実施者",
+     "type": "by",
+     "w": 80
+    },
+    {
+     "id": "k_tddh50oifm",
+     "name": "実施日",
+     "type": "at",
+     "w": 124
+    },
+    {
+     "id": "k_qids4ya92l",
+     "name": "備考",
+     "type": "remark",
+     "w": 180
+    },
+    {
+     "id": "k_d9wkobbm24",
+     "name": "証跡",
+     "type": "evidence",
+     "w": 56
+    }
+   ],
+   "ts": {},
+   "updatedAt": 1792983600002
+  },
+  {
+   "id": "s_oyk3jmieft",
+   "name": "管理画面",
+   "kind": "cases",
+   "order": 2,
+   "columns": [
+    {
+     "id": "k_4ml870uxe4",
+     "name": "大項目",
+     "type": "level",
+     "w": 110
+    },
+    {
+     "id": "k_xxfr6xh8zb",
+     "name": "中項目",
+     "type": "level",
+     "w": 110
+    },
+    {
+     "id": "k_373ruyv42v",
+     "name": "小項目",
+     "type": "level",
+     "w": 110
+    },
+    {
+     "id": "k_pwl90iywc2",
+     "name": "確認内容",
+     "type": "text",
+     "w": 220
+    },
+    {
+     "id": "k_ko7em4taol",
+     "name": "前提条件",
+     "type": "text",
+     "w": 160
+    },
+    {
+     "id": "k_fafz42najt",
+     "name": "手順",
+     "type": "text",
+     "w": 200
+    },
+    {
+     "id": "k_t4h2y3f3ku",
+     "name": "期待結果",
+     "type": "text",
+     "w": 200
+    },
+    {
+     "id": "k_9f3671ebqi",
+     "name": "結果",
+     "type": "verdict",
+     "w": 76
+    },
+    {
+     "id": "k_0v721od6mm",
+     "name": "実施者",
+     "type": "by",
+     "w": 80
+    },
+    {
+     "id": "k_f629zhe0en",
+     "name": "実施日",
+     "type": "at",
+     "w": 124
+    },
+    {
+     "id": "k_6izihy65pq",
+     "name": "備考",
+     "type": "remark",
+     "w": 180
+    },
+    {
+     "id": "k_cfcnr060o9",
+     "name": "証跡",
+     "type": "evidence",
+     "w": 56
+    }
+   ],
+   "ts": {},
+   "updatedAt": 1792983600006
+  }
+ ],
+ "runs": [
+  {
+   "id": "r_82322x2ax1",
+   "name": "1回目",
+   "order": 1,
+   "ts": {},
+   "updatedAt": 1792983600003
+  },
+  {
+   "id": "r_yesgju3yuq",
+   "name": "回帰",
+   "order": 2,
+   "ts": {},
+   "updatedAt": 1792724400004
+  }
+ ],
+ "items": [
+  {
+   "id": "i_yx44yn0ny8",
+   "sheet": "s_njuutx881p",
+   "order": 1,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_f5j7q5lc3q": "価格計算",
+   "k_fk148syai7": "通常の購入",
+   "k_pqv33hxctp": "画面",
+   "k_nzox0wwcvx": "1個だけ買ったときの金額",
+   "k_120joww2lo": "一般会員でログイン済み",
+   "k_y1go45ipfs": "1. りんご（¥120）を1個カートに入れる\n2. 注文確認画面を開く",
+   "k_pkic4477lf": "割引は付かず、合計 ¥120"
+  },
+  {
+   "id": "i_duzr6v105q",
+   "sheet": "s_njuutx881p",
+   "order": 2,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_f5j7q5lc3q": "価格計算",
+   "k_fk148syai7": "通常の購入",
+   "k_pqv33hxctp": "画面",
+   "k_nzox0wwcvx": "まとめ買い割引（5個以上）",
+   "k_120joww2lo": "一般会員でログイン済み",
+   "k_y1go45ipfs": "1. バナナ（¥100）を5個カートに入れる\n2. 注文確認画面を開く",
+   "k_pkic4477lf": "「まとめ買い -¥50」が付き、合計 ¥450"
+  },
+  {
+   "id": "i_zr0rj2oooy",
+   "sheet": "s_njuutx881p",
+   "order": 3,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_f5j7q5lc3q": "価格計算",
+   "k_fk148syai7": "会員割引",
+   "k_pqv33hxctp": "画面",
+   "k_nzox0wwcvx": "ゴールド会員の割引",
+   "k_120joww2lo": "ゴールド会員でログイン済み",
+   "k_y1go45ipfs": "1. りんごを3個カートに入れる\n2. 注文確認画面を開く",
+   "k_pkic4477lf": "小計 ¥360 の 5%「会員割引 -¥18」が付き、合計 ¥342"
+  },
+  {
+   "id": "i_e306keiw2z",
+   "sheet": "s_njuutx881p",
+   "order": 4,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_f5j7q5lc3q": "価格計算",
+   "k_fk148syai7": "会員割引",
+   "k_pqv33hxctp": "画面",
+   "k_nzox0wwcvx": "割引が重なるときの計算の順番",
+   "k_120joww2lo": "ゴールド会員でログイン済み",
+   "k_y1go45ipfs": "1. バナナ5個・りんご3個を入れる\n2. 注文確認画面を開く",
+   "k_pkic4477lf": "まとめ買い（-¥50）→ 会員割引（-¥40）の順に計算され、合計 ¥770"
+  },
+  {
+   "id": "i_j2k0cyf10m",
+   "sheet": "s_njuutx881p",
+   "order": 5,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_f5j7q5lc3q": "価格計算",
+   "k_fk148syai7": "会員割引",
+   "k_pqv33hxctp": "API",
+   "k_nzox0wwcvx": "見積もり API の割引額",
+   "k_120joww2lo": "API キーを用意しておく",
+   "k_y1go45ipfs": "GET /quote?item=banana&qty=5",
+   "k_pkic4477lf": "discount=50, total=450 が返る"
+  },
+  {
+   "id": "i_tmrd7qi4n2",
+   "sheet": "s_njuutx881p",
+   "order": 6,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_f5j7q5lc3q": "在庫",
+   "k_fk148syai7": "在庫切れ",
+   "k_pqv33hxctp": "画面",
+   "k_nzox0wwcvx": "在庫切れの商品をカートに入れる",
+   "k_120joww2lo": "商品の在庫を0にしておく",
+   "k_y1go45ipfs": "1. 商品ページで「カートに入れる」を押す",
+   "k_pkic4477lf": "「在庫がありません」と出て、カートは変わらない"
+  },
+  {
+   "id": "i_erlzlacipq",
+   "sheet": "s_njuutx881p",
+   "order": 7,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_f5j7q5lc3q": "在庫",
+   "k_fk148syai7": "在庫切れ",
+   "k_pqv33hxctp": "画面",
+   "k_nzox0wwcvx": "最後の1個を2人が同時に注文する",
+   "k_120joww2lo": "在庫を1にしておく",
+   "k_y1go45ipfs": "1. 2つのブラウザで同じ商品をカートに入れる\n2. 同時に「注文を確定する」を押す",
+   "k_pkic4477lf": "先に確定したほうだけ注文でき、もう一方は在庫切れのエラーになる"
+  },
+  {
+   "id": "i_0az7xone5o",
+   "sheet": "s_njuutx881p",
+   "order": 8,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_f5j7q5lc3q": "支払い",
+   "k_fk148syai7": "カード",
+   "k_pqv33hxctp": "画面",
+   "k_nzox0wwcvx": "カードで支払う",
+   "k_120joww2lo": "決済はテストモード",
+   "k_y1go45ipfs": "1. テスト用のカード番号で支払う",
+   "k_pkic4477lf": "注文完了画面が出て、注文番号が採番される"
+  },
+  {
+   "id": "i_qk5kt22g43",
+   "sheet": "s_njuutx881p",
+   "order": 9,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_f5j7q5lc3q": "支払い",
+   "k_fk148syai7": "カード",
+   "k_pqv33hxctp": "画面",
+   "k_nzox0wwcvx": "カードが使えないとき",
+   "k_120joww2lo": "決済はテストモード",
+   "k_y1go45ipfs": "1. 拒否されるテスト用のカード番号で支払う",
+   "k_pkic4477lf": "「カードが使えませんでした」と出て、注文は作られない"
+  },
+  {
+   "id": "i_gd0wcv5nka",
+   "sheet": "s_oyk3jmieft",
+   "order": 10,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_4ml870uxe4": "商品",
+   "k_xxfr6xh8zb": "登録",
+   "k_373ruyv42v": "画面",
+   "k_pwl90iywc2": "商品の新規登録",
+   "k_ko7em4taol": "管理者でログイン済み",
+   "k_fafz42najt": "1. 商品名・価格・在庫を入れて保存する",
+   "k_t4h2y3f3ku": "一覧に出て、お店側の商品ページにも表示される"
+  },
+  {
+   "id": "i_gnq8yne88s",
+   "sheet": "s_oyk3jmieft",
+   "order": 11,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_4ml870uxe4": "商品",
+   "k_xxfr6xh8zb": "登録",
+   "k_373ruyv42v": "画面",
+   "k_pwl90iywc2": "価格の入力チェック（マイナス）",
+   "k_ko7em4taol": "管理者でログイン済み",
+   "k_fafz42najt": "1. 価格に -100 を入れて保存する",
+   "k_t4h2y3f3ku": "「価格は0以上で入力してください」と出て、保存されない"
+  },
+  {
+   "id": "i_bqihp3709z",
+   "sheet": "s_oyk3jmieft",
+   "order": 12,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "k_4ml870uxe4": "帳票",
+   "k_xxfr6xh8zb": "売上",
+   "k_373ruyv42v": "帳票",
+   "k_pwl90iywc2": "月次売上の CSV 出力",
+   "k_ko7em4taol": "10月に注文が3件ある",
+   "k_fafz42najt": "1. 売上 → 10月を選ぶ\n2. 「CSV 出力」を押す",
+   "k_t4h2y3f3ku": "3件が出力され、合計金額が画面の表示と一致する"
+  }
+ ],
+ "records": [
+  {
+   "id": "rec_i_yx44yn0ny8_r_82322x2ax1",
+   "item": "i_yx44yn0ny8",
+   "run": "r_82322x2ax1",
+   "by": "田中",
+   "at": "2026/10/23 13:00",
+   "verdict": "ok",
+   "remark": "",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_duzr6v105q_r_82322x2ax1",
+   "item": "i_duzr6v105q",
+   "run": "r_82322x2ax1",
+   "by": "田中",
+   "at": "2026/10/23 13:12",
+   "verdict": "ok",
+   "remark": "",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_zr0rj2oooy_r_82322x2ax1",
+   "item": "i_zr0rj2oooy",
+   "run": "r_82322x2ax1",
+   "by": "田中",
+   "at": "2026/10/23 13:30",
+   "verdict": "ok",
+   "remark": "",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_e306keiw2z_r_82322x2ax1",
+   "item": "i_e306keiw2z",
+   "run": "r_82322x2ax1",
+   "by": "佐藤",
+   "at": "2026/10/23 14:00",
+   "verdict": "ng",
+   "remark": "#128 で起票",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_j2k0cyf10m_r_82322x2ax1",
+   "item": "i_j2k0cyf10m",
+   "run": "r_82322x2ax1",
+   "by": "佐藤",
+   "at": "2026/10/23 14:18",
+   "verdict": "ok",
+   "remark": "",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_tmrd7qi4n2_r_82322x2ax1",
+   "item": "i_tmrd7qi4n2",
+   "run": "r_82322x2ax1",
+   "by": "田中",
+   "at": "2026/10/23 15:00",
+   "verdict": "ok",
+   "remark": "",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_erlzlacipq_r_82322x2ax1",
+   "item": "i_erlzlacipq",
+   "run": "r_82322x2ax1",
+   "by": "佐藤",
+   "at": "2026/10/23 15:24",
+   "verdict": "hold",
+   "remark": "タイミングが合わず再現待ち",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_gd0wcv5nka_r_82322x2ax1",
+   "item": "i_gd0wcv5nka",
+   "run": "r_82322x2ax1",
+   "by": "佐藤",
+   "at": "2026/10/23 16:00",
+   "verdict": "ok",
+   "remark": "",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_gnq8yne88s_r_82322x2ax1",
+   "item": "i_gnq8yne88s",
+   "run": "r_82322x2ax1",
+   "by": "佐藤",
+   "at": "2026/10/23 16:12",
+   "verdict": "ok",
+   "remark": "",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_bqihp3709z_r_82322x2ax1",
+   "item": "i_bqihp3709z",
+   "run": "r_82322x2ax1",
+   "by": "田中",
+   "at": "2026/10/23 17:00",
+   "verdict": "na",
+   "remark": "帳票は次フェーズ",
+   "ts": {},
+   "updatedAt": 1792724400004
+  },
+  {
+   "id": "rec_i_e306keiw2z_r_yesgju3yuq",
+   "item": "i_e306keiw2z",
+   "run": "r_yesgju3yuq",
+   "by": "佐藤",
+   "at": "2026/10/24 18:00",
+   "verdict": "ok",
+   "remark": "#128 修正版で確認",
+   "ts": {},
+   "updatedAt": 1792724400004
+  }
+ ],
+ "elements": [
+  {
+   "id": "e_8zfcbr3bd9",
+   "owner": "ev:i_e306keiw2z:r_82322x2ax1",
+   "type": "image",
+   "z": 1,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 24,
+   "y": 24,
+   "w": 720,
+   "h": 450,
+   "name": "注文確認画面",
+   "nw": 960,
+   "nh": 600
+  },
+  {
+   "id": "e_rkp2oom343",
+   "owner": "ev:i_e306keiw2z:r_82322x2ax1",
+   "type": "frame",
+   "z": 2,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 536,
+   "y": 248,
+   "w": 176,
+   "h": 44,
+   "color": "red"
+  },
+  {
+   "id": "e_5iv8d760ff",
+   "owner": "ev:i_e306keiw2z:r_82322x2ax1",
+   "type": "line",
+   "z": 3,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 780,
+   "y": 270,
+   "w": -60,
+   "h": 0,
+   "arrow": true,
+   "color": "red"
+  },
+  {
+   "id": "e_swxi86y2pd",
+   "owner": "ev:i_e306keiw2z:r_82322x2ax1",
+   "type": "text",
+   "z": 4,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 788,
+   "y": 252,
+   "w": 300,
+   "style": "normal",
+   "text": "合計が ¥767 になっている（正しくは ¥770）。\n会員割引がまとめ買いの前に計算されている。",
+   "runs": [
+    {
+     "t": "合計が "
+    },
+    {
+     "t": "¥767",
+     "b": 1,
+     "c": "red"
+    },
+    {
+     "t": " になっている（正しくは ¥770）。\n会員割引がまとめ買いの前に計算されている。"
+    }
+   ]
+  },
+  {
+   "id": "e_se8itec7av",
+   "owner": "ev:i_e306keiw2z:r_82322x2ax1",
+   "type": "text",
+   "z": 5,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 24,
+   "y": 500,
+   "w": 720,
+   "style": "log",
+   "text": "2026-10-26 14:02:11 INFO  quote item=banana qty=5 member=gold\n2026-10-26 14:02:11 DEBUG apply member_discount rate=0.05 subtotal=860 -> 43\n2026-10-26 14:02:11 DEBUG apply bulk_discount amount=50\n2026-10-26 14:02:11 INFO  total=767"
+  },
+  {
+   "id": "e_8pmop0of14",
+   "owner": "ev:i_erlzlacipq:r_82322x2ax1",
+   "type": "text",
+   "z": 6,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 24,
+   "y": 24,
+   "w": 640,
+   "style": "normal",
+   "text": "録画: \\\\fileserver\\qa\\shop\\evidence\\在庫同時注文_20261026.mp4\n同時押しのタイミングが合わず、まだ再現できていない。"
+  },
+  {
+   "id": "e_3xz2l01570",
+   "owner": "sheet:s_ml81k47vah",
+   "type": "text",
+   "z": 7,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 32,
+   "y": 28,
+   "w": 600,
+   "style": "title",
+   "text": "小さなお店 結合試験"
+  },
+  {
+   "id": "e_71qpzz9cvf",
+   "owner": "sheet:s_ml81k47vah",
+   "type": "text",
+   "z": 8,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 32,
+   "y": 76,
+   "w": 600,
+   "style": "normal",
+   "text": "注文から支払いまでと、管理画面の商品登録を確かめる。\n期間: 2026/10/26 〜 11/6　担当: 田中・佐藤"
+  },
+  {
+   "id": "e_211jf315xx",
+   "owner": "sheet:s_ml81k47vah",
+   "type": "table",
+   "z": 9,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 32,
+   "y": 170,
+   "w": 520,
+   "cells": [
+    [
+     "環境",
+     "内容"
+    ],
+    [
+     "URL",
+     "https://staging.shop.example/"
+    ],
+    [
+     "ブラウザ",
+     "Edge 130 / Chrome 130"
+    ],
+    [
+     "ビルド",
+     "v1.4.0-rc2"
+    ],
+    [
+     "決済",
+     "テストモード"
+    ]
+   ]
+  },
+  {
+   "id": "e_ca1fi9gs4c",
+   "owner": "sheet:s_ml81k47vah",
+   "type": "metric",
+   "z": 10,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 600,
+   "y": 170,
+   "w": 560,
+   "run": "r_82322x2ax1"
+  },
+  {
+   "id": "e_5ciexpt9de",
+   "owner": "sheet:s_ml81k47vah",
+   "type": "text",
+   "z": 11,
+   "by": "佐藤",
+   "at": 1792724400004,
+   "ts": {},
+   "updatedAt": 1792724400004,
+   "x": 32,
+   "y": 380,
+   "w": 520,
+   "style": "normal",
+   "text": "前提条件\n・テスト用の会員（一般・ゴールド）を作っておく\n・在庫は毎朝リセットされる"
+  }
+ ],
+ "conflicts": [],
+ "comments": [
+  {
+   "id": "c_m5s6r7cvul",
+   "item": "i_zr0rj2oooy",
+   "col": "k_pkic4477lf",
+   "text": "割引率は仕様書 v1.4 で 5% → 8% に変わっています。期待結果を直してください",
+   "by": "田中",
+   "at": 1792731600004,
+   "done": false,
+   "ts": {},
+   "updatedAt": 1792724400004
+  }
+ ]
+}

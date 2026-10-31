@@ -1,0 +1,12 @@
+[fz]No++ | [fz]大項目+ | [fz]中項目+ | [fz fzl]小項目+ | []確認内容+ | []前提条件+ | []手順+ | []期待結果+ | []結果+ | []実施者+ | []実施日+ | []備考+ | []証跡+ | [addcol]＋
+[]
+[ro num nocell fz]1+ | [nb lv fz cur]▾価格計算 | [nb lv fz]通常の購入 | [nb lv fz fzl]画面 | []1個だけ買ったときの金額 | [nb]一般会員でログイン済み | []1. りんご（¥120）を1個カートに入れる 2. 注文確認画面を開く | []割引は付かず、合計 ¥120 | [pick center]OK | [small]田中 | [small]2026/10/23 13:00 | [small] | [pick center]＋
+[ro num nocell fz]2+ | [dup nb lv fz]価格計算 | [dup lv fz]通常の購入 | [dup lv fz fzl]画面 | []まとめ買い割引（5個以上） | [dup]一般会員でログイン済み | []1. バナナ（¥100）を5個カートに入れる 2. 注文確認画面を開く | []「まとめ買い -¥50」が付き、合計 ¥450 | [pick center]OK | [small]田中 | [small]2026/10/23 13:12 | [small] | [pick center]＋
+[ro num nocell fz]3+ | [dup nb lv fz]価格計算 | [nb lv fz]会員割引 | [nb lv fz fzl]画面 | []ゴールド会員の割引 | [nb]ゴールド会員でログイン済み | []1. りんごを3個カートに入れる 2. 注文確認画面を開く | [cm]小計 ¥360 の 5%「会員割引 -¥18」が付き、合計 ¥342 | [pick center]OK | [small]田中 | [small]2026/10/23 13:30 | [small] | [pick center]＋
+[ro num nocell fz]4+ | [dup nb lv fz]価格計算 | [dup nb lv fz]会員割引 | [dup lv fz fzl]画面 | []割引が重なるときの計算の順番 | [dup]ゴールド会員でログイン済み | []1. バナナ5個・りんご3個を入れる 2. 注文確認画面を開く | []まとめ買い（-¥50）→ 会員割引（-¥40）の順に計算され、合計 ¥770 | [pick center]NG | [small]佐藤 | [small]2026/10/23 14:00 | [small]#128 で起票 | [pick center]5
+[ro num nocell fz]5+ | [dup lv fz]価格計算 | [dup lv fz]会員割引 | [lv fz fzl]API | []見積もり API の割引額 | []API キーを用意しておく | []GET /quote?item=banana&qty=5 | []discount=50, total=450 が返る | [pick center]OK | [small]佐藤 | [small]2026/10/23 14:18 | [small] | [pick center]＋
+[ro num nocell fz]6+ | [nb lv fz]▾在庫 | [nb lv fz]在庫切れ | [nb lv fz fzl]画面 | []在庫切れの商品をカートに入れる | []商品の在庫を0にしておく | []1. 商品ページで「カートに入れる」を押す | []「在庫がありません」と出て、カートは変わらない | [pick center]OK | [small]田中 | [small]2026/10/23 15:00 | [small] | [pick center]＋
+[ro num nocell fz]7+ | [dup lv fz]在庫 | [dup lv fz]在庫切れ | [dup lv fz fzl]画面 | []最後の1個を2人が同時に注文する | []在庫を1にしておく | []1. 2つのブラウザで同じ商品をカートに入れる 2. 同時に「注文を確定する」を押す | []先に確定したほうだけ注文でき、もう一方は在庫切れのエラーになる | [pick center]保留 | [small]佐藤 | [small]2026/10/23 15:24 | [small]タイミングが合わず再現待ち | [pick center]1
+[ro num nocell fz]8+ | [nb lv fz]▾支払い | [nb lv fz]カード | [nb lv fz fzl]画面 | []カードで支払う | [nb]決済はテストモード | []1. テスト用のカード番号で支払う | []注文完了画面が出て、注文番号が採番される | [pick center]— | [small] | [small] | [small] | [pick center]＋
+[ro num nocell fz]9+ | [dup lv fz]支払い | [dup lv fz]カード | [dup lv fz fzl]画面 | []カードが使えないとき | [dup]決済はテストモード | []1. 拒否されるテスト用のカード番号で支払う | []「カードが使えませんでした」と出て、注文は作られない | [pick center]— | [small] | [small] | [small] | [pick center]＋
+[]

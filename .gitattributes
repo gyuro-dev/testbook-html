@@ -1,0 +1,5 @@
+# 改行は LF にそろえる（配布する testbook.html の SHA-256 が、Windows と Linux / macOS で同じになるように）
+* text=auto eol=lf
+*.png binary
+# samples/ は試験が今のアプリから作り直す生成物。差分は読まず（-diff）、GitHub のレビューでは畳む
+samples/*.html text eol=lf -diff linguist-generated=true
