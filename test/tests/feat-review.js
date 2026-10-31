@@ -173,4 +173,91 @@
     undo();
     eq([[img.x, img.y], [fr.x, fr.y]], [[20, 20], [100, 100]], 'まとめて元に戻る');
   });
+
+  /* 0.1.0 の公開後、利用者の目線のレビューで出た指摘 */
+  const status = () => document.querySelector('#status');
+  // ブラウザを開き直したあとの保存先（覚えていたハンドル）。上書きの許可は、保存で求めるまで「まだ」
+  class AskHandle extends FakeHandle {
+    constructor(name) { super(name); this.perm = 'prompt'; }
+    async queryPermission() { return this.perm; }
+    async requestPermission() { this.perm = 'granted'; return 'granted'; }
+  }
+
+  test('⋯: 「使い方（GitHub）」で README を開く。英語の画面では英語の README', async () => {
+    const keep = window.open, opened = [];
+    window.open = (url, target) => { opened.push([url, target]); return null; };
+    try {
+      TB.click('[data-act="more"]'); TB.click('#pop [data-act="help"]');
+      setLang('en'); TB.click('[data-act="more"]'); TB.click('#pop [data-act="help"]');
+    } finally { setLang('ja'); window.open = keep; }
+    eq(opened, [['https://github.com/gyuro-dev/testbook-html/blob/main/README.ja.md', '_blank'], ['https://github.com/gyuro-dev/testbook-html#readme', '_blank']]);
+  });
+
+  test('保存: 上書きできないブラウザでは、保存する前から状態の欄に出す', async () => {
+    window.showSaveFilePicker = undefined; window.download = () => {};
+    renderStatus();
+    eq(status().textContent, '上書き保存できないブラウザです');
+    ok(status().title.includes('Edge か Chrome'), '理由: ' + status().title);
+    snap(); addItem();
+    ok(status().textContent.includes('保存していない'), '変更があればそちらを出す');
+    await save();
+    ok(status().textContent.startsWith('保存済み'), '保存したら保存済み: ' + status().textContent);
+  });
+
+  test('自動保存: 開き直して上書きの許可がまだないときは「まもなく自動保存」と出さず下書きに置き、Ctrl+S で許可すると自動保存に戻る', async () => {
+    await idb('drafts', 'readwrite', st => st.clear());
+    const h = new AskHandle('a.html');
+    loadDoc(newDoc(), h); S.auto = true; await sleep(0);
+    eq(S.perm, false, '許可がまだないと分かる');
+    snap(); addItem();
+    ok(status().textContent.includes('Ctrl+S で保存') && !status().textContent.includes('まもなく自動保存'), '状態: ' + status().textContent);
+    ok(status().title.includes('自動保存は止まっています'), '理由: ' + status().title);
+    idle(); await autoTick();
+    eq(h.writes, 0, '許可がないので書かない');
+    ok(await idb('drafts', 'readonly', st => st.get(D.meta.id)), 'かわりに下書き');
+    await save();
+    eq([h.writes, h.perm, S.perm], [1, 'granted', true], 'Ctrl+S で許可を求めて書く');
+    snap(); addItem();
+    ok(status().textContent.includes('まもなく自動保存'), '状態: ' + status().textContent);
+    idle(); await autoTick();
+    eq(h.writes, 2, 'そのあとは自動で書く');
+  });
+
+  test('保存先: 試験のファイルをコピーして開いたときは、覚えている元のファイルに書かない', async () => {
+    const here = location.href, cur = pageName(here);
+    const put = v => idb('handles', 'readwrite', st => st.put(v, D.meta.id));
+    const restored = async () => { S.handle = null; await restoreHandle(); return S.handle && S.handle.name; };
+    S.handle = new FakeHandle(cur); await rememberHandle();
+    eq(await restored(), cur, 'このファイルから保存した保存先は使う');
+    S.handle = new FakeHandle('元の試験.html'); await rememberHandle();
+    eq(await restored(), null, '名前が違う（「… - コピー.html」などで開いた）なら使わない');
+    await put({ h: new FakeHandle(cur), page: 'file:///Z:/ほかのフォルダ/' + encodeURIComponent(cur) });
+    eq(await restored(), null, '同じ名前でも、別の場所のファイルから保存したなら使わない');
+    await put({ h: new FakeHandle(cur), page: 'file:///Z:/試験/testbook.html' });
+    eq(await restored(), cur, 'ひな形の testbook.html から名前を付けて保存した試験は使う');
+    await put(new FakeHandle(cur));
+    eq(await restored(), cur, '0.1.0 が覚えた保存先（ハンドルだけ）も、名前が合えば使う');
+    S.handle = null;
+  });
+
+  test('保存: ほかの人が試験のファイルを初めて保存するとき、保存画面の名前の欄に開いているファイルの名前を入れる', async () => {
+    const names = [], asked = [], h = new FakeHandle('x.html');
+    window.showSaveFilePicker = async o => { names.push(o.suggestedName); return h; };
+    window.dialog = async o => { asked.push(o.message); return true; };
+    try {
+      loadDoc(newDoc()); snap(); setF(D.meta, 'title', 'ログイン試験');
+      PAGE_DOC = { id: D.meta.id, name: 'ログイン試験_第2版.html' };
+      localStorage.removeItem('testbook.saveHint');
+      await save();
+      eq(names, ['ログイン試験_第2版.html'], '題名ではなく、開いているファイルの名前');
+      ok(asked[0].includes('今開いているこのファイル（ログイン試験_第2版.html）を選ぶと'), '案内にもファイル名: ' + asked[0].split('\n')[2]);
+      await save(true);
+      eq(names[1], 'ログイン試験.html', '「名前を付けて保存」は題名から');
+      loadDoc(newDoc()); snap(); setF(D.meta, 'title', '新しい試験');
+      localStorage.removeItem('testbook.saveHint');
+      await save();
+      eq(names[2], '新しい試験.html', 'ひな形や新しい試験は、今までどおり題名から');
+      ok(asked[1].includes('今開いているこのファイルを選ぶと'), '案内にファイル名は出さない');
+    } finally { PAGE_DOC = null; }
+  });
 })();
