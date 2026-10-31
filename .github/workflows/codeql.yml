@@ -1,0 +1,42 @@
+# CodeQL（GitHub の Code scanning）。リポジトリの「既定の設定」ではなく、このファイルで動かす。
+# 理由: samples/*.html にはアプリ本体がそのまま入っていて、既定の設定では同じ指摘がサンプルの数だけ重複して出る。
+# ここでは samples/ を対象から外す（サンプルは test/tests/samples.js がアプリと同じ中身であることを確かめている）。
+# アプリ本体に残る js/xss-through-dom の指摘（試験データが innerHTML に届く、という経路）は設計どおりで、
+# 値は描くときに esc() を通し、ID・色・座標は読むときに normalize() が形を確かめる（test/tests/security.js）。
+# それらは Code scanning の画面で理由を付けて「誤検知」にしてある。
+name: CodeQL
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "41 20 * * 1"   # 火曜 05:41 JST
+
+permissions: {}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config: |
+            paths-ignore:
+              - samples
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: "/language:${{ matrix.language }}"
