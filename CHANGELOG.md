@@ -16,9 +16,15 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 - The README explains how to start a test file, how several people start from the same file, how to move a file to a new version, and lists the keys in one place.
 - When someone saves a test file they received for the first time, the save dialog suggests the name of the file they opened (not a name made from the title), and the notice before it names that file, so picking the file to overwrite is easier.
 
+### Security
+
+- Data from a test file someone else made (imported with "Import", dropped on a free sheet, or pulled from a shared folder) can no longer run script in your `testbook.html`: the issue link template is only used when it starts with `http://` or `https://` and is escaped; image and file contents are shown only when they are base64 data URLs; IDs, element types, colors, coordinates, text styles, result values and metric numbers are checked when a file is read, and values of the wrong form are dropped.
+
 ### Fixed
 
 - After the browser was restarted, the top bar said "autosaving soon" although autosave waits until overwriting the file is allowed. It now says "save with Ctrl+S".
+- In English, the comment box placeholder was cut off at the quotation marks, and the "Sorted" button in the toolbar showed the Japanese name of a default column.
+- A title containing `$&` or `$'` broke the `<title>` of the saved file.
 - Opening a copy of a test file (renamed, or the same name in another folder) no longer saves into the original file; the first save asks where to save.
 
 ## [0.1.0] - 2026-10-31

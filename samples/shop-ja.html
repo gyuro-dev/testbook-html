@@ -910,9 +910,11 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const LINK = { src: null, url: '', n: false, key: false };
 function linkCfg() {
   const u = (D && D.meta.issueUrl) || '';
-  if (u !== LINK.src) { LINK.src = u; LINK.url = u; LINK.n = u.includes('{n}'); LINK.key = u.includes('{key}'); }
+  // 取り込んだファイルの値なので信用しない: http(s) 以外（javascript: など）は使わず、属性に入れられる形にしておく
+  if (u !== LINK.src) { LINK.src = u; LINK.url = /^https?:\/\//i.test(u) ? esc(u) : ''; LINK.n = u.includes('{n}'); LINK.key = u.includes('{key}'); }
   return LINK;
 }
+// href と text は esc 済みのものを渡す
 const aTag = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
 function issueLinks(t) {
   const L = linkCfg();
@@ -976,13 +978,49 @@ function newDoc() {
     items: [], records: [], elements: [], conflicts: [], comments: [],
   };
 }
+/* 取り込んだファイルの中身は信用しない。文字は描くときに esc するが、ID・種類・色・座標のように属性や CSS や
+ * セレクタにそのまま入る値は、ここで形を確かめて、合わないものは捨てる（ほかの人から受け取ったファイルを「取り込み」しても
+ * スクリプトが動かないように）。 */
+// ID は英数字と _ - . : だけ（数十万件を毎回見るので、正規表現より速い文字コードの走査にしている）
+function safeId(s) {
+  if (typeof s !== 'string' || !s.length || s.length > 200) return false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (!((c >= 97 && c <= 122) || (c >= 48 && c <= 58) || (c >= 65 && c <= 90) || c === 95 || c === 45 || c === 46)) return false;
+  }
+  return true;
+}
+const okId = o => !!o && typeof o === 'object' && safeId(o.id);
+// 全部が ok ならその配列をそのまま返す（大きなファイルで配列を作り直さない）
+function keep(arr, ok) { let i = 0; while (i < arr.length && ok(arr[i])) i++; return i < arr.length ? arr.filter(ok) : arr; }
+const EL_TYPES = new Set(['text', 'image', 'frame', 'table', 'file', 'metric', 'line', 'marker', 'xmetric', 'xtotal']);
+const COLOR_KEYS = new Set(['red', 'blue', 'green', 'orange', 'gray', 'black', 'white', 'yellow']);
+const TEXT_STYLES = new Set(['normal', 'title', 'log']);
+const num = (v, d = 0) => typeof v === 'number' && Number.isFinite(v) ? v : d;
+function cleanEl(e) {
+  if (!EL_TYPES.has(e.type) || typeof e.owner !== 'string') return false;
+  for (const k of ['x', 'y', 'w', 'h', 'z', 'n']) if (k in e) e[k] = num(e[k]);
+  for (const k of ['color', 'fc']) if (e[k] && !COLOR_KEYS.has(e[k])) delete e[k];
+  if (e.style && !TEXT_STYLES.has(e.style)) delete e.style;
+  if (e.type === 'table' && !(Array.isArray(e.cells) && e.cells.every(Array.isArray))) e.cells = [['']];
+  if (e.type === 'xmetric') e.runs = (Array.isArray(e.runs) ? e.runs : []).filter(t => t && typeof t === 'object')
+    .map(t => { for (const k of ['total', 'ok', 'ng', 'hold', 'na', 'none', 'done', 'ev']) t[k] = num(t[k]); return t; });
+  return true;
+}
 function normalize(d) {
   if (!d || d.format !== 'testbook' || d.version !== 2) return null;
-  for (const k of COLLS) if (!Array.isArray(d[k])) d[k] = [];
+  for (const k of COLLS) d[k] = Array.isArray(d[k]) ? keep(d[k], okId) : [];
   d.meta = Object.assign({ id: uid('d_'), title: _t('無題の試験'), ts: {} }, d.meta);
+  if (!okId(d.meta)) d.meta.id = uid('d_');
   if (!live(d.sheets).length) d.sheets.push(newSheet(_t('試験項目'), 'cases', 1));
   if (!live(d.runs).length) d.runs.push({ id: uid('r_'), name: _t('1回目'), order: 1, ts: {}, updatedAt: now() });
-  for (const s of d.sheets) if (!Array.isArray(s.columns)) s.columns = [];
+  for (const s of d.sheets) {
+    if (s.color && !COLOR_KEYS.has(s.color)) delete s.color;
+    s.columns = Array.isArray(s.columns) ? keep(s.columns, okId) : [];
+    for (const c of s.columns) c.w = num(c.w, 140);
+  }
+  d.elements = keep(d.elements, e => e.deleted || cleanEl(e));
+  d.conflicts = keep(d.conflicts, c => c.k == null || safeId(c.k));
   return d;
 }
 /* ファイルの形:
@@ -1051,7 +1089,7 @@ function captureShell() {
 }
 // 保存するファイルの中身。画像は1枚ずつ Blob にしてから並べるので、全部を一度にメモリに載せない
 function fileBlob(parts = jsonParts()) {
-  const head = SHELL[0].replace(/<title>[^<]*<\/title>/, `<title>${esc(D.meta.title)}</title>`);
+  const head = SHELL[0].replace(/<title>[^<]*<\/title>/, () => `<title>${esc(D.meta.title)}</title>`);
   let jsonLen = 0;
   for (const p of parts) jsonLen += p.length;
   const blobs = [];
@@ -1452,7 +1490,7 @@ function blobUrl(e) {
   if (hit && (!e.data || hit[0] === e.data)) return hit[1];
   const data = elData(e);
   const m = /^data:([^;,]*)(;base64)?,/.exec(data.slice(0, 100));
-  if (!m || !m[2]) return data;
+  if (!m || !m[2]) return '';  // 取り込んだファイルの値なので、base64 の data URL 以外（javascript: など）は出さない
   const bin = atob(data.slice(m[0].length)), arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   const url = URL.createObjectURL(new Blob([arr], { type: m[1] }));
@@ -1634,7 +1672,7 @@ function renderToolbar() {
     <input type="search" id="q" placeholder="${_t('検索（Ctrl+F）')}" value="${esc(S.q)}" style="width:160px">
     <button data-act="replace" class="ghost" title="${_t('文字の置換（Ctrl+H）')}">${_t('置換')}</button>
     ${activeCf(curSheet()).length ? `<button data-act="cfClearAll" class="on" title="${_t('列の値の絞り込みをすべて解除')}">${_t('絞り込み中（{0} 列） ×', activeCf(curSheet()).length)}</button>` : ''}
-    ${sortOf(curSheet()) ? `<button data-act="sortClear" class="on" title="${_t('並べ替えをやめて元の順に戻す')}">${_t('並べ替え中（{0} {1}） ×', esc(sheetCols(curSheet()).find(c => c.id === S.sort.col).name), S.sort.dir === 'desc' ? _t('降順') : _t('昇順'))}</button>` : ''}
+    ${sortOf(curSheet()) ? `<button data-act="sortClear" class="on" title="${_t('並べ替えをやめて元の順に戻す')}">${_t('並べ替え中（{0} {1}） ×', esc(dn(sheetCols(curSheet()).find(c => c.id === S.sort.col).name)), S.sort.dir === 'desc' ? _t('降順') : _t('昇順'))}</button>` : ''}
     ${foldCol(curSheet()) ? `<button data-act="toc" class="ghost" title="${_t('大項目の一覧（クリックするとその場所へ移動）')}">${_t('目次')}</button>` : ''}
     <select id="vf" title="${_t('結果・証跡・前の実施回で絞り込む')}">
       <option value="">${_t('結果: すべて')}</option>
@@ -1715,7 +1753,7 @@ const styled = runs => runs.some(r => r.b || r.s || r.c);
 function runsToHtml(runs, link) {
   return runs.map(r => {
     let h = link ? linkify(r.t) : esc(r.t);
-    if (r.c) h = `<span class="fc-${r.c}">${h}</span>`;
+    if (PAL[r.c]) h = `<span class="fc-${r.c}">${h}</span>`;
     if (r.s) h = `<s>${h}</s>`;
     if (r.b) h = `<b>${h}</b>`;
     return h;
@@ -2026,7 +2064,7 @@ function rowHtml(r, C) {
     const c = C[j];
     let inner = '', cls = '';
     const f = FMT_COLS(c) && cellFmt(it, c);
-    if (f) cls += (f.b ? ' fb' : '') + (f.s ? ' fs' : '') + (f.c ? ' fc-' + f.c : '');
+    if (f) cls += (f.b ? ' fb' : '') + (f.s ? ' fs' : '') + (PAL[f.c] ? ' fc-' + f.c : '');
     if (MERGEABLE(c) && it[c.id]) {
       if (prev && same(prev, it, c, j)) cls += ' dup';
       if (next && same(it, next, c, j)) cls += ' nb';
@@ -2053,7 +2091,7 @@ function rowHtml(r, C) {
       case 'number': inner = text(c, it[c.id]); cls += ' num'; break;
       case 'select': inner = it[c.id] ? `<span class="chip">${esc(it[c.id])}</span>` : ''; cls += ' pick'; break;
       case 'check': inner = `<span class="ck${it[c.id] ? ' on' : ''}">${it[c.id] ? '✓' : ''}</span>`; cls += ' pick center'; break;
-      case 'verdict': inner = v ? `<span class="pill v-${v}">${vLabel(v)}</span>` : '<span class="pill v-none">—</span>'; cls += ' pick center'; break;
+      case 'verdict': inner = VMAP[v] ? `<span class="pill v-${v}">${vLabel(v)}</span>` : '<span class="pill v-none">—</span>'; cls += ' pick center'; break;
       case 'by': case 'at': case 'remark': inner = text(c, rec && rec[c.type]); cls += ' small'; break;
       case 'evidence': { const n = IX.el.get(evOwner(it.id, S.run)); inner = n ? `<span class="ev-n">${CLIP}${n}</span>` : '<span class="ev-add">＋</span>'; cls += ' pick center'; break; }
       default: inner = text(c, it[c.id]);
@@ -2600,11 +2638,12 @@ function commentsHtml(it) {
   const list = commentsOf(it.id), open = list.filter(c => !c.done).length, target = cmTarget();
   return `<div class="sec"><div class="sec-h">${_t('コメント')} ${open ? `<span class="count">${open}</span>` : ''}<span class="spacer"></span></div>
     ${list.length ? `<div class="cmts">${list.map(x => `<div class="cmt${x.done ? ' done' : ''}"><div class="cmt-h"><label><input type="checkbox" data-act="cmDone" data-id="${x.id}"${x.done ? ' checked' : ''} title="${_t('解決したらチェック')}"> <b>${esc(x.by || '')}</b></label><span class="muted">${fmt(x.at, true)}${x.col ? ` ・ ${esc(colLabel(it, x.col))}` : ''}${x.done && x.doneBy ? ` ・ ${_t('解決済み（{0}）', esc(x.doneBy))}` : ''}</span><button class="ghost mini" data-act="cmDel" data-id="${x.id}" title="${_t('削除')}">×</button></div><div class="cmt-t">${linkify(x.text)}</div></div>`).join('')}</div>` : ''}
-    <div class="cmt-new"><textarea class="f" id="cmtext" rows="2" placeholder="${cmPlaceholder(it, target)}"></textarea>
-    <div class="row" style="display:flex;gap:6px;justify-content:flex-end;align-items:center"><span class="muted cm-hint" style="font-size:11px;flex:1">${cmHint(it, target)}</span><button data-act="cmAdd" data-id="${it.id}" data-col="${esc(target)}" class="mini">${_t('コメントを付ける')}</button></div></div></div>`;
+    <div class="cmt-new"><textarea class="f" id="cmtext" rows="2" placeholder="${esc(cmPlaceholder(it, target))}"></textarea>
+    <div class="row" style="display:flex;gap:6px;justify-content:flex-end;align-items:center"><span class="muted cm-hint" style="font-size:11px;flex:1">${esc(cmHint(it, target))}</span><button data-act="cmAdd" data-id="${it.id}" data-col="${esc(target)}" class="mini">${_t('コメントを付ける')}</button></div></div></div>`;
 }
-const cmPlaceholder = (it, target, raw) => (target ? _t('「{0}」について', raw ? colLabel(it, target) : esc(colLabel(it, target))) : _t('この項目について')) + _t('（Ctrl+Enter で追加）');
-const cmHint = (it, target, raw) => target ? _t('選んでいる列「{0}」に付けます', raw ? colLabel(it, target) : esc(colLabel(it, target))) : '';
+// 文字のまま返す（HTML に入れるときは呼ぶ側で esc する）
+const cmPlaceholder = (it, target) => (target ? _t('「{0}」について', colLabel(it, target)) : _t('この項目について')) + _t('（Ctrl+Enter で追加）');
+const cmHint = (it, target) => target ? _t('選んでいる列「{0}」に付けます', colLabel(it, target)) : '';
 // 同じ行の中で列だけ動いたときは、パネルを描き直さずにコメントの付け先だけ直す
 function syncCmTarget() {
   const b = $('#pane [data-act="cmAdd"]'), it = curItem();
@@ -2613,8 +2652,8 @@ function syncCmTarget() {
   if (b.dataset.col === target) return;
   b.dataset.col = target;
   const ta = $('#cmtext'), hint = $('#pane .cm-hint');
-  if (ta) ta.placeholder = cmPlaceholder(it, target, true);
-  if (hint) hint.textContent = cmHint(it, target, true);
+  if (ta) ta.placeholder = cmPlaceholder(it, target);
+  if (hint) hint.textContent = cmHint(it, target);
 }
 async function addComment(itemId, col, text) {
   if (!text.trim() || !(await ensureMe())) return null;
@@ -2628,10 +2667,10 @@ async function addComment(itemId, col, text) {
 function histHtml(rec) {
   const h = (rec && rec.hist) || [];
   if (!h.length) return '';
-  const lab = v => v ? `<span class="pill v-${v}">${VMAP[v] ? vLabel(v) : esc(v)}</span>` : `<span class="muted">${_t('未実施')}</span>`;
+  const lab = v => VMAP[v] ? `<span class="pill v-${v}">${vLabel(v)}</span>` : v ? esc(v) : `<span class="muted">${_t('未実施')}</span>`;
   return `<div class="sec"><div class="sec-h">${_t('結果の履歴')} <span class="count">${h.length}</span><span class="spacer"></span><button class="ghost mini" data-act="histClear" data-id="${rec.id}" title="${_t('この試験項目の履歴をすべて消す（Ctrl+Z で元に戻せます）')}">${_t('履歴を消す')}</button></div><div class="hist">${h.slice().reverse().map((x, i) => {
     const prev = h[h.length - 1 - i - 1];
-    return `<div><span class="muted">${fmt(x.t, true)}</span> ${esc(x.by || '')} <span class="muted">${prev ? lab(prev.v) + ' →' : ''}</span> ${lab(x.v)}<button class="ghost mini hx" data-act="histDel" data-id="${rec.id}" data-t="${x.t}" title="${_t('この1件を消す')}">×</button></div>`;
+    return `<div><span class="muted">${fmt(x.t, true)}</span> ${esc(x.by || '')} <span class="muted">${prev ? lab(prev.v) + ' →' : ''}</span> ${lab(x.v)}<button class="ghost mini hx" data-act="histDel" data-id="${rec.id}" data-t="${num(x.t)}"title="${_t('この1件を消す')}">×</button></div>`;
   }).join('')}</div></div>`;
 }
 // 履歴を消す。消した時刻を覚えておき、ほかの人のファイルと合わせても戻ってこないようにする
@@ -3369,7 +3408,7 @@ function reportHtml({ scope, withEv }) {
   buildIndex();
   const SH = (scope === 'sheet' ? [curSheet()] : sheets()), run = runName(S.run);
   const cases = SH.filter(s => s.kind === 'cases'), allItems = cases.flatMap(s => itemsOf(s.id)), t = tally(allItems, S.run);
-  const pill = v => v ? `<span class="pill v-${v}">${vLabel(v)}</span>` : '';
+  const pill = v => VMAP[v] ? `<span class="pill v-${v}">${vLabel(v)}</span>` : '';
   const row = (label, x, sub) => `<tr${sub ? ' class="sub"' : ''}><td>${esc(label)}</td><td>${x.total}</td><td>${x.ok}</td><td>${x.ng}</td><td>${x.hold}</td><td>${x.na}</td><td>${x.none}</td><td>${pct(x)}</td></tr>`;
   const head = `<tr><th></th><th>${_t('項目数')}</th><th>OK</th><th>NG</th><th>${_t('保留')}</th><th>${_t('対象外')}</th><th>${_t('未実施')}</th><th>${_t('消化率')}</th></tr>`;
   let h = `<h1>${esc(dn(D.meta.title))}</h1><div class="rmeta">${_t('実施回')}: ${esc(run)}　${_t('出力日時')}: ${fmt(now(), true)}${S.me ? `　${_t('作成者')}: ${esc(S.me)}` : ''}</div>
@@ -3393,7 +3432,7 @@ function reportHtml({ scope, withEv }) {
         if (c.type === 'check') return `<td>${it[c.id] ? '✓' : ''}</td>`;
         // 画面と同じ書式（太字・取り消し線・色、1文字ずつの書式）で出す
         const f = FMT_COLS(c) && cellFmt(it, c), rs = FMT_COLS(c) && cellRuns(it, c);
-        const cls = f ? [f.b ? 'fb' : '', f.s ? 'fs' : '', f.c ? 'fc-' + f.c : ''].filter(Boolean).join(' ') : '';
+        const cls = f ? [f.b ? 'fb' : '', f.s ? 'fs' : '', PAL[f.c] ? 'fc-' + f.c : ''].filter(Boolean).join(' ') : '';
         return `<td${cls ? ` class="${cls}"` : ''}>${rs ? runsToHtml(rs, true) : linkify(cellText(it, c))}</td>`;
       }).join('')}</tr>`;
     });
