@@ -92,8 +92,8 @@
     // まとめのファイル（自由シートだけ）
     const m = newDoc(); m.meta.title = 'まとめ'; m.sheets.unshift(newSheet('ダッシュボード', 'free', 0));
     loadDoc(m); S.me = '田中'; S.sheet = sheets()[0].id; render();
-    TB.drop('#board', [fileA, fileB]); await sleep(300);
     const els = () => elementsOf(boardOwner());
+    TB.drop('#board', [fileA, fileB]); await TB.until(() => els().length === 2);
     eq(els().map(e => [e.type, e.title]), [['xmetric', '小さなお店 結合試験'], ['xmetric', '管理 API 試験']], '2枚のカード');
     const a = els()[0];
     eq(a.runs.map(r => [r.name, r.total, r.ok, r.ng, r.done]), [['1回目', 12, 7, 1, 9], ['回帰', 12, 1, 0, 1]], '実施回ごとの数（shop）');
@@ -103,7 +103,7 @@
     // B を直してまた落とすと、カードが増えずに数字が変わる
     loadDoc(await readBook(fileB)); await setVerdict(item(4), 'ok'); const fileB2 = TB.savedFile('api.html');
     loadDoc(m); S.me = '田中'; S.sheet = sheets()[0].id; render();
-    TB.drop('#board', [fileB2]); await sleep(300);
+    TB.drop('#board', [fileB2]); await TB.until(() => els()[1] && els()[1].runs[0].ok === 3);
     eq(els().length, 2, 'カードは増えない');
     eq(els()[1].runs[0].ok, 3, '数字が新しくなる');
     TB.click('[data-act="tool"][data-t="xtotal"]'); await sleep(0);
@@ -112,7 +112,7 @@
     const n = [...tot.querySelectorAll('.mcards b')].map(b => b.textContent);
     eq(n, ['31%', '16', '4', '1', '0', '11'], '最後の実施回どうしの合計（shop は回帰 1/12、api は 1回目 4/4: OK 3 + NG 1）');
     // testbook でない HTML を落としても集計にはならず、添付になる
-    TB.drop('#board', [new File(['<html>x</html>'], 'memo.html', { type: 'text/html' })]); await sleep(200);
+    TB.drop('#board', [new File(['<html>x</html>'], 'memo.html', { type: 'text/html' })]); await TB.until(() => els().some(e => e.type === 'text'));
     ok(els().some(e => e.type === 'text' && e.text.startsWith('【memo.html】')), 'ふつうのファイルとして置かれる（文字のファイルはログの枠）');
     ok(TB.toasts().some(t => t.includes('memo.html は testbook')), '断りの文言');
   });

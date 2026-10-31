@@ -143,7 +143,7 @@
     const log = new File(['line1\nline2'], 'app.log', { type: 'text/plain' });
     const bin = new File([new Uint8Array(1000)], 'dump.bin', { type: 'application/octet-stream' });
     const big = new File([new Uint8Array(1)], 'big.zip', { type: 'application/zip' }); Object.defineProperty(big, 'size', { value: MAX_FILE + 1 });
-    TB.drop(board(), [log, bin, big]); await sleep(300);
+    TB.drop(board(), [log, bin, big]); await TB.until(() => els().length >= 2 && TB.toasts().length);
     eq(els().map(e => e.type), ['text', 'file'], '置かれた物');
     eq([els()[0].style, els()[0].text], ['log', '【app.log】\nline1\nline2'], 'ログの枠に名前と中身');
     eq([els()[1].name, els()[1].size, els()[1].data.slice(0, 5)], ['dump.bin', 1000, 'data:'], '添付');
