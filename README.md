@@ -35,7 +35,7 @@ The UI is in English or Japanese. It follows the browser language, and "⋯ → 
 - **Permission to overwrite**: after the browser is restarted, the first save may ask whether the page may edit the file. Until you allow it, autosave does not overwrite the file: the top bar says "save with Ctrl+S", and changes are kept as a draft in the browser.
 - **Copied files**: when you open a copy of a test file (copied or renamed), the first save asks where to save again, so the original file is never overwritten by surprise.
 - **Autosave and drafts**: "⋯ → Autosave (overwrite when typing stops)" turns autosave on or off. Changes not yet saved are kept as a draft inside the browser and offered back the next time. This works only in the same browser on the same PC, and clearing the browser's data clears the drafts too.
-- **Several people**: everyone starts from the same test file (one somebody saved and handed out). Files that each person started from an empty `testbook.html` are different tests: importing one only adds its sheets, and the results are not merged.
+- **Several people**: everyone starts from the same test file (one somebody saved and handed out). Files that each person started from an empty `testbook.html` are different tests: importing one adds its sheets as they are, and only runs with the same name (such as "Run 1") are treated as the same run.
 - **File size**: many images make a large file. When it no longer fits in an e-mail, hand it over through a shared folder. For big logs or videos, write the path as text instead. On a PC with 8 GB of memory, stay under about 1 GB for image-heavy tests and about 300,000 rows for row-heavy ones.
 - **Moving to a new version**: a test file carries the app inside, so it keeps running the version it was saved with. To move it to a new version, open the new `testbook.html`, choose the test file with "Open", and save. Files saved with this version (0.1) will keep opening in later versions.
 - **Files from others**: a test file carries the app inside, so opening one by double-click runs whatever app it carries. For a file whose origin you are unsure of, open your own `testbook.html` and bring the file in with "Import" instead: data imported that way is checked and cannot run script.
@@ -101,7 +101,7 @@ A free-form board, one per case per run. The "Evidence" column of the table show
 
 ### Working with several people
 
-First, one person creates the test file, saves it and hands it out to everyone. Files that each person started from an empty `testbook.html` are different tests: importing one asks "Import its sheets?", and doing so only adds sheets; the results are not merged.
+First, one person creates the test file, saves it and hands it out to everyone. Files that each person started from an empty `testbook.html` are different tests: importing one asks "Import its sheets?", and doing so adds its sheets as they are. Runs with the same name (such as "Run 1") are treated as the same run, so the imported results show up under it; rows are never merged with yours.
 
 - **Passing files around**: drag the file you received onto the table (or use "Import"). The same thing is never added twice, and you are told what came in ("items 5, results 30, evidence 12, comments 2").
 - **The same file on a shared folder**: everyone opens that file, and when the first save asks where to save, picks that same file on the shared folder. The browser on each PC remembers the location, so each PC asks only once. The name box already holds the name of the opened file: go to the shared folder, press Save, and answer Yes when asked to replace it. Right before saving, the latest content on disk is read and merged, then written (autosave does the same). While the file is open, other people's saves are picked up every 20 seconds.
@@ -241,7 +241,7 @@ bash test/run.sh                                          macOS / Linux
 ```
 
 - `-Filter マージ` (`--filter マージ`) runs only the tests whose name contains the text (test names are in Japanese). `-Show` (`--show`) opens a visible browser with the developer tools. `-Browser edge` or `TB_BROWSER=path` picks the browser.
-- When everything passes it prints `184 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
+- When everything passes it prints `188 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
 - `-Update` (`--update`) rewrites the golden files in `test\golden\` and the files in `samples\` after an intentional change; `git diff` then shows what changed.
 
 #### How it works

@@ -98,4 +98,43 @@
       ok(b && b.textContent.includes('Check') && !b.textContent.includes('確認内容'), '並べ替え中: ' + (b && b.textContent));
     } finally { LANG = 'ja'; S.sort = null; S.sortVer++; }
   });
+
+  test('貼り付け: ボードに貼る要素もファイルと同じ検査を通る（種類・色・座標・ID・置き場所は持ち込ませない）', async () => {
+    snap(); const it = addItem(); openEvidence(it.id); await sleep(0);
+    const owner = evOwner(it.id, S.run);
+    const json = JSON.stringify([
+      { type: 'frame' + INJ, x: 0, y: 0, w: 10, h: 10 },
+      { id: 'e_' + INJ, owner: 'ev:x:y', z: 99, type: 'frame', color: 'red' + INJ, x: '0;' + INJ, y: 0, w: 10, h: 10 },
+      'junk',
+      { type: 'text', text: 'ok', x: 0, y: 0, w: 100 },
+    ]);
+    TB.clip(document.querySelector('#boardwrap'), 'paste', TB.dt({ extra: { [EL_MIME]: json } })); await sleep(0);
+    const els = elementsOf(owner);
+    eq(els.map(e => e.type), ['frame', 'text'], '種類のおかしいものは捨てる');
+    eq([els[0].color, typeof els[0].x, els[0].z, els[0].owner.startsWith('ev:') && els[0].id.startsWith('e_') && !els[0].id.includes('<')], [undefined, 'number', 1, true], '色・座標・重なり・ID・置き場所は貼り付け先のもの');
+    noXss('#board');
+    closeEvidence();
+  });
+
+  test('取り込み: 壊れた base64 の画像はボード全体を止めず、知らない結果の値は集計でも未実施に数える', async () => {
+    const d = newDoc(), sh = d.sheets[0], run = d.runs[0];
+    d.items.push({ id: 'i_1', sheet: sh.id, order: 1, ts: {}, updatedAt: 1 }, { id: 'i_2', sheet: sh.id, order: 2, ts: {}, updatedAt: 1 });
+    d.records.push({ id: 'rec_i_1_' + run.id, item: 'i_1', run: run.id, verdict: 'ok' + INJ, ts: {}, updatedAt: 1 }, { id: 'rec_i_2_' + run.id, item: 'i_2', run: run.id, verdict: 'ng', ts: {}, updatedAt: 1 });
+    d.elements.push({ id: 'e_1', owner: `ev:i_1:${run.id}`, type: 'image', x: 0, y: 0, w: 100, h: 100, data: 'data:image/png;base64,@@@壊れている@@@', ts: {}, updatedAt: 1 },
+      { id: 'e_2', owner: `ev:i_1:${run.id}`, type: 'text', text: 'まだ描ける', x: 0, y: 200, w: 100, ts: {}, updatedAt: 1 });
+    const r = await readJson(d);
+    eq(r.records.map(x => x.verdict), [undefined, 'ng'], '知らない結果の値は読むときに捨てる');
+    loadDoc(r); render();
+    const t = tally(itemsOf(S.sheet), S.run);
+    eq([t.total, t.none, t.ng, t.done], [2, 1, 1, 1], '集計は表と同じ（未実施 1、NG 1）');
+    openEvidence('i_1'); await sleep(0);
+    eq(document.querySelector('#board img').getAttribute('src'), '', '壊れた画像は空の src');
+    ok(document.querySelector('#board .el-text').textContent.includes('まだ描ける'), 'ほかの要素は描ける');
+    closeEvidence();
+  });
+
+  test('印刷: 黒塗り・白塗りの枠と丸数字は、印刷の「背景のグラフィック」が外れていても塗りを消さない', () => {
+    const probe = cls => { const el = document.createElement('div'); el.className = cls; document.body.appendChild(el); const v = getComputedStyle(el).printColorAdjust || getComputedStyle(el).webkitPrintColorAdjust; el.remove(); return v; };
+    eq([probe('el el-frame c-black'), probe('el el-frame c-white'), probe('el el-marker c-red'), probe('el el-frame c-red')], ['exact', 'exact', 'exact', 'economy'], 'print-color-adjust');
+  });
 })();

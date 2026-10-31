@@ -244,6 +244,29 @@
     eq(itemsOf(S.sheet).length, 2, '行は増えない');
   });
 
+  test('取り込み: 別の試験ファイルをシートごと取り込むと、同じ名前の実施回は1つにまとまり、相手の結果とエビデンス票がその実施回で見える', async () => {
+    const other = user(newDoc(), '佐藤', () => {
+      const it = addItem(); setF(it, col('確認内容').id, '別の試験の行'); applyVerdict(it, 'ok');
+      addEl(evOwner(it.id, S.run), 'text', { x: 0, y: 0, w: 200, text: '証跡' });
+      addEl(sheetOwner(S.sheet), 'metric', { x: 0, y: 0, w: 400, run: S.run });
+      D.runs.push({ id: uid('r_'), name: '再試験', order: 2, ts: {}, updatedAt: now() });
+    });
+    loadDoc(clone(other)); const f = new File([fileBlob()], 'other.html');
+    const b0 = base(); open(b0);
+    const myRun = S.run;
+    window.dialog = async () => true;
+    await importFiles([f]);
+    eq(runs().map(r => r.name), ['1回目', '再試験'], '同じ名前の「1回目」は増えず、違う名前の実施回は増える');
+    eq(sheets().length, 2, 'シートは増える');
+    const sh = sheets()[1], it = itemsOf(sh.id)[0];
+    eq(verdictOf(it.id, myRun), 'ok', '相手の結果はこちらの「1回目」で見える');
+    const rec = recOf(it.id, myRun);
+    eq(rec.id, `rec_${it.id}_${myRun}`, '結果の ID も付け直す');
+    eq(IX.el.get(evOwner(it.id, myRun)), 1, 'エビデンス票も');
+    eq(live(D.elements).find(e => e.type === 'metric').run, myRun, '集計カードの実施回も');
+    eq(live(D.records).filter(r => r.run !== myRun && !runs().some(x => x.id === r.run)).length, 0, '消えた実施回を指す結果はない');
+  });
+
   test('マージ: 保存したファイルからの取り込み（readBook → mergeInto）が通しで動く', async () => {
     const b0 = base(), K = col('確認内容').id;
     const sato = user(b0, '佐藤', () => setF(item(2), K, '佐藤の値'));
