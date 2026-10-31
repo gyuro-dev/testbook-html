@@ -6,6 +6,8 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-01
+
 ### Added
 
 - "⋯ → How to use (GitHub)" opens the README, so people who only received a test file can find the guide.
@@ -45,5 +47,6 @@ First public version.
 - Ready-made samples in `samples/`.
 - Automated tests that run in headless Chrome or Edge on Windows, Linux and macOS.
 
-[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/gyuro-dev/testbook-html/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/gyuro-dev/testbook-html/releases/tag/v0.1.0
