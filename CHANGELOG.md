@@ -6,6 +6,8 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-02
+
 ### Fixed
 
 - With an issue link template set, text containing an apostrophe (`don't`) showed a broken link to issue 39. A template with both `{n}` and `{key}` could also rewrite the links it had just made.
@@ -78,7 +80,8 @@ First public version.
 - Ready-made samples in `samples/`.
 - Automated tests that run in headless Chrome or Edge on Windows, Linux and macOS.
 
-[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/gyuro-dev/testbook-html/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/gyuro-dev/testbook-html/releases/tag/v0.1.0
