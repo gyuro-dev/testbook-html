@@ -644,6 +644,8 @@ const EN = {
   '「{0}」を削除しました（Ctrl+Z で元に戻せます）': 'Deleted "{0}" (Ctrl+Z to undo)',
   '「{0}」と、この実施回の結果 {1} 件・エビデンス票 {2} 枚を削除しますか？ほかの実施回には影響しません。': 'Delete "{0}" with its {1} results and {2} evidence boards? Other runs stay as they are.',
   '実施回「{0}」': 'Run "{0}"',
+  'シート「{0}」': 'Sheet "{0}"',
+  'この値は使えないので、今の値のままにしました': 'This value cannot be used, so the current value stays',
   '最後の列は削除できません': 'The last column cannot be deleted',
   '最終更新': 'Last updated',
   '未実施': 'Not run',
@@ -929,9 +931,16 @@ const aTag = (href, text) => `<a href="${href}" target="_blank" rel="noopener">$
 function issueLinks(t) {
   const L = linkCfg();
   if (!L.url || !t) return t;
-  if (L.n) t = t.replace(/#(\d+)/g, (_, n) => aTag(L.url.replace('{n}', n), '#' + n));
-  if (L.key) t = t.replace(/(^|[^\w-])([A-Z][A-Z0-9]+-\d+)(?![\w-])/g, (_, pre, k) => pre + aTag(L.url.replace('{key}', k), k));
+  if (L.n && L.key) return issueLinksBoth(t, L);
+  // t は esc 済みなので、' は &#39; になっている。直前が & の # は番号として読まない
+  if (L.n) return t.replace(/#(\d+)/g, (m, n, at) => t[at - 1] === '&' ? m : aTag(L.url.replace('{n}', n), '#' + n));
+  if (L.key) return t.replace(/(^|[^\w-])([A-Z][A-Z0-9]+-\d+)(?![\w-])/g, (_, pre, k) => pre + aTag(L.url.replace('{key}', k), k));
   return t;
+}
+// 両方あるときは1回の置き換えでまとめて見る（作った <a> の中を、もう一度書き換えないように）
+function issueLinksBoth(t, L) {
+  return t.replace(/(^|[^\w-])([A-Z][A-Z0-9]+-\d+)(?![\w-])|#(\d+)/g, (m, pre, k, n, at) =>
+    k ? pre + aTag(L.url.replace('{key}', k), k) : t[at - 1] === '&' ? m : aTag(L.url.replace('{n}', n), '#' + n));
 }
 function linkify(s) {
   s = esc(s);
@@ -1012,11 +1021,15 @@ function cleanEl(e) {
   for (const k of ['x', 'y', 'w', 'h', 'z', 'n']) if (k in e) e[k] = num(e[k]);
   for (const k of ['color', 'fc']) if (e[k] && !COLOR_KEYS.has(e[k])) delete e[k];
   if (e.style && !TEXT_STYLES.has(e.style)) delete e.style;
-  if (e.type === 'table' && !(Array.isArray(e.cells) && e.cells.every(Array.isArray))) e.cells = [['']];
+  if (e.type === 'table' && !(Array.isArray(e.cells) && e.cells.length && e.cells.every(r => Array.isArray(r) && r.length))) e.cells = [['']];
+  if (e.type === 'text' && e.runs && !(Array.isArray(e.runs) && e.runs.every(t => t && typeof t === 'object'))) delete e.runs;
   if (e.type === 'xmetric') e.runs = (Array.isArray(e.runs) ? e.runs : []).filter(t => t && typeof t === 'object')
     .map(t => { for (const k of ['total', 'ok', 'ng', 'hold', 'na', 'none', 'done', 'ev']) t[k] = num(t[k]); return t; });
   return true;
 }
+// 削除の印（tomb）は種類を持たないので cleanEl を通らない。印に要らない値は捨てて残す（あとで合わせて復活しても、確かめていない値が画面に出ないように）
+const TOMB_KEYS = new Set(['id', 'deleted', 'ts', 'updatedAt']);
+function tombEl(e) { for (const k of Object.keys(e)) if (!TOMB_KEYS.has(k)) delete e[k]; return true; }
 function normalize(d) {
   if (!d || d.format !== 'testbook' || d.version !== 2) return null;
   for (const k of COLLS) d[k] = Array.isArray(d[k]) ? keep(d[k], okId) : [];
@@ -1029,8 +1042,8 @@ function normalize(d) {
     s.columns = Array.isArray(s.columns) ? keep(s.columns, okId) : [];
     for (const c of s.columns) c.w = num(c.w, 140);
   }
-  d.elements = keep(d.elements, e => e.deleted || cleanEl(e));
-  d.conflicts = keep(d.conflicts, c => c.k == null || safeId(c.k));
+  d.elements = keep(d.elements, e => cleanEl(e) || (!!e.deleted && tombEl(e)));
+  d.conflicts = keep(d.conflicts, c => (c.k == null || safeId(c.k)) && (c.coll == null || c.coll === 'meta' || COLLS.includes(c.coll)));
   for (const r of d.records) if (r.verdict && !VMAP[r.verdict]) delete r.verdict;  // 知らない結果の値は、表でも集計でも「未実施」にする
   return d;
 }
@@ -1233,7 +1246,7 @@ function mergeObj(a, b, coll, ctx) {
     if (x === y) continue;
     const bNewer = y > x, win = bNewer ? b : a, lose = bNewer ? a : b, lt = Math.min(x, y);
     if (ctx && coll !== 'conflicts' && !NO_CONFLICT.has(k) && !a.deleted && !b.deleted &&
-      ((win.bt && win.bt[k]) || 0) < lt && JSON.stringify(win[k]) !== JSON.stringify(lose[k])) {
+      ((win.bt && win.bt[k]) || 0) < lt && JSON.stringify(win[k]) !== JSON.stringify(lose[k]) && safeId(k)) {  // k は競合の ID に入る。ファイルの値なので形を確かめる
       ctx.conflicts.push({ coll, obj: a.id, k, value: clone(lose[k]), vt: lt });
     }
     if (bNewer) {
@@ -1301,6 +1314,29 @@ function mergeInto(dst, src) {
     if (!r.deleted) continue;
     const td = (r.ts && r.ts.deleted) || 0;
     if ((runTouched.get(r.id) || 0) > td) { r.deleted = false; (r.ts || (r.ts = {})).deleted = tick(); ctx.revived.push({ coll: 'runs', obj: r.id, t: td }); st.n++; }
+  }
+  // 削除されたシートに残っている行や要素があれば、シートも残す（シートがないと、どこからも見えなくなる）。
+  // 印だけのシート（名前も列もない）は戻せないのでそのまま
+  const goneSheets = new Map(dst.sheets.filter(s => s.deleted && s.name != null).map(s => [s.id, s]));
+  if (goneSheets.size) {
+    const keepSheet = id => {
+      const s = goneSheets.get(id);
+      if (!s) return;
+      goneSheets.delete(id);
+      const td = (s.ts && s.ts.deleted) || 0;
+      s.deleted = false; (s.ts || (s.ts = {})).deleted = tick(); ctx.revived.push({ coll: 'sheets', obj: s.id, t: td }); st.n++;
+    };
+    for (const it of dst.items) if (!it.deleted) keepSheet(it.sheet);
+    for (const e of dst.elements) if (!e.deleted && e.owner && e.owner.startsWith('sheet:')) keepSheet(e.owner.slice(6));
+  }
+  // 残したシートや行といっしょに削除の印が付いたもの（印の時刻が親より後）も戻す。親より先に消してあったものは戻さない
+  const keptAt = new Map();
+  for (const r of ctx.revived) if (r.coll === 'items' || r.coll === 'sheets') keptAt.set(r.obj, r.t);
+  if (keptAt.size) {
+    const wentWith = (o, id) => keptAt.has(id) && !!o.ts && (o.ts.deleted || 0) >= keptAt.get(id);
+    const undelete = o => { o.deleted = false; o.ts.deleted = tick(); };
+    for (const it of dst.items) if (it.deleted && wentWith(it, it.sheet)) { keptAt.set(it.id, it.ts.deleted); undelete(it); st.n++; }
+    for (const e of dst.elements) if (e.deleted && e.owner && wentWith(e, e.owner.split(':')[1])) { undelete(e); st.n++; }
   }
   const have = new Set(dst.conflicts.map(c => c.id)), t = now();
   const add = c => { if (have.has(c.id)) return; have.add(c.id); dst.conflicts.push({ ...c, at: t, ts: {}, updatedAt: t }); st.conflicts++; };
@@ -1843,6 +1879,21 @@ function richCmd(cmd, val) { document.execCommand('styleWithCSS', false, false);
 function renumberOrders(sid) {
   itemsOf(sid).forEach((it, i) => setF(it, 'order', i + 1));
 }
+// 行を消す。エビデンス票の要素にも削除の印を付ける（貼った画像の中身が、保存するファイルに残らないように）。
+// 合わせるときに親より後の印を見て戻すので、行に先に印を付ける
+function deleteItems(list) {
+  buildIndex();
+  const ids = new Set(list.map(it => it.id)), evs = [];
+  for (const [owner, els] of IX.els) if (owner && owner.startsWith('ev:') && ids.has(owner.split(':')[1])) evs.push(...els);
+  for (const it of list) setF(it, 'deleted', true);
+  for (const e of evs) setF(e, 'deleted', true);
+}
+function deleteSheet(s) {
+  const list = itemsOf(s.id), els = elementsOf(sheetOwner(s.id));
+  setF(s, 'deleted', true);
+  deleteItems(list);
+  for (const e of els) setF(e, 'deleted', true);
+}
 function addItem(after, inherit, order) {
   if (order == null) {
     let list = itemsOf(S.sheet);
@@ -1897,6 +1948,13 @@ const groupsOf = sh => cached('groups:' + sh.id, () => {
 });
 // 列の値での絞り込み（Excel のオートフィルタ）: 列ごとに「見せる値」の集まりを持つ
 const activeCf = sh => sheetCols(sh).filter(c => S.cf[c.id]).map(c => [c, S.cf[c.id]]);
+// 今のシートの指定の行へ飛ぶ前に、その行を隠している検索・絞り込み・折りたたみを外す（描き直しは呼ぶ側で）
+function revealItem(it) {
+  const sh = curSheet(), lv = foldCol(sh);
+  S.q = ''; S.vf = '';
+  for (const [c, set] of activeCf(sh)) if (!set.has(cellText(it, c))) { delete S.cf[c.id]; S.cfVer++; }
+  if (lv && foldSet(sh).has(it[lv.id] || '') && !visibleRows().includes(it)) setFold(sh, it[lv.id] || '', false);
+}
 function visibleRows() {
   const sh = curSheet(), all = itemsOf(S.sheet), q = S.q.trim().toLowerCase();
   const cfs = activeCf(sh), lv = foldCol(sh), fold = lv ? foldSet(sh) : null, folding = !!(fold && fold.size);
@@ -2393,6 +2451,7 @@ function onEditorInput() {
 function moveRow(dir) {
   const it = curItem();
   if (!it) return;
+  if (sortOf(curSheet())) { toast(_t('並べ替え中は行を移動できません。並べ替えを解除してから移動してください'), 'err'); return; }
   const list = itemsOf(S.sheet), i = list.indexOf(it), o = list[i + dir];
   if (!o) return;
   snap();
@@ -2603,7 +2662,7 @@ function startColResize(e, handle) {
     moved = true;
     c.w = Math.max(36, Math.round(w0 + ev.clientX - sx));
     col.style.width = c.w + 'px';
-    grid().style.width = cols().reduce((s, x) => s + x.w, 0) + 'px';
+    grid().style.width = cols().reduce((s, x) => s + x.w, 0) + 40 + 'px';
     placeEditor();
   };
   const mu = () => {
@@ -3253,7 +3312,7 @@ function findObj(coll, id) {
 }
 function showVal(cf, v) {
   if (v == null || v === '') return `<span class="muted">${_t('（空）')}</span>`;
-  if (cf.k === 'verdict') return VMAP[v] ? `<span class="pill v-${v}">${vLabel(v)}</span>` : esc(v);
+  if (cf.k === 'verdict') return VMAP[v] ? `<span class="pill v-${esc(v)}">${vLabel(v)}</span>` : esc(v);
   if (Array.isArray(v)) return esc(v.map(r => Array.isArray(r) ? r.join(' | ') : r).join('\n'));
   if (typeof v === 'boolean') return v ? '✓' : `<span class="muted">${_t('（なし）')}</span>`;
   return esc(String(v).slice(0, 2000));
@@ -3272,6 +3331,7 @@ function cfPlace(cf) {
     return { text: _t('{0} の{1}（{2}）', itemPlace(it), fname(cf.k), runName(o && o.run)), item: it, col: cf.k, run: o && o.run };
   }
   if (cf.coll === 'runs' && o) return { text: _t('実施回「{0}」', o.name) };
+  if (cf.coll === 'sheets' && cf.kind === 'revived' && o) return { text: _t('シート「{0}」', dn(o.name)), board: true, sheet: o.id };
   if (cf.coll === 'comments' && o) { const it = getItem(o.item); return { text: _t('{0} のコメント', itemPlace(it)), item: it }; }
   if (cf.coll === 'elements' && o) {
     const [kind, a, b] = o.owner.split(':');
@@ -3287,22 +3347,33 @@ function renderConflicts() {
   if (!back) {
     back = document.createElement('div');
     back.id = 'cfpanel'; back.className = 'dlg-back';
-    back.addEventListener('click', e => { const b = e.target.closest('[data-cf]'); if (b) resolveConflict(b.dataset.cf, b.dataset.id); else if (e.target === back) back.remove(); });
+    back.addEventListener('click', e => { const b = e.target.closest('[data-cf]'); if (b) resolveConflict(b.dataset.cf, b.dataset.id); else if (e.target === back) { back.remove(); focusMain(); } });
     document.body.appendChild(back);
   }
-  back.innerHTML = `<div class="dlg wide" role="dialog"><h4>${_t('競合 {0} 件', list.length)}</h4>
+  back.innerHTML = `<div class="dlg wide" role="dialog" tabindex="-1" style="outline:none"><h4>${_t('競合 {0} 件', list.length)}</h4>
     <p>${_t('ほかの人のファイルと合わせたときに、同じ箇所が別々に直されていたものです。今は新しいほうの値を表示しています。どちらの値を使うか選んでください。')}</p>
     ${list.map(cf => {
       const p = cfPlace(cf), o = findObj(cf.coll, cf.obj);
-      const go = p.item || p.sheet ? `<button class="ghost" data-cf="go" data-id="${cf.id}">${_t('その場所を開く')}</button>` : '';
+      const go = p.item || p.sheet ? `<button class="ghost" data-cf="go" data-id="${esc(cf.id)}">${_t('その場所を開く')}</button>` : '';
       if (cf.kind === 'revived') return `<div class="cf-item"><div class="cf-where">${esc(p.text)}</div>
-        <p style="margin:0 0 8px">${_t('ほかの人がこの{0}を削除しましたが、削除のあとで結果・エビデンス・内容の変更があったため、削除せずに残しています。', cf.coll === 'items' ? _t('行') : cf.coll === 'runs' ? _t('実施回') : _t('要素'))}</p>
-        <div class="row">${go}<button data-cf="drop" data-id="${cf.id}" class="danger">${_t('削除する')}</button><button data-cf="keep" data-id="${cf.id}" class="primary">${_t('残す')}</button></div></div>`;
+        <p style="margin:0 0 8px">${_t('ほかの人がこの{0}を削除しましたが、削除のあとで結果・エビデンス・内容の変更があったため、削除せずに残しています。', cf.coll === 'items' ? _t('行') : cf.coll === 'runs' ? _t('実施回') : cf.coll === 'sheets' ? _t('シート') : _t('要素'))}</p>
+        <div class="row">${go}<button data-cf="drop" data-id="${esc(cf.id)}" class="danger">${_t('削除する')}</button><button data-cf="keep" data-id="${esc(cf.id)}" class="primary">${_t('残す')}</button></div></div>`;
       return `<div class="cf-item"><div class="cf-where">${esc(p.text)}</div>
         <div class="cf-vals"><div><b>${_t('今の値')}</b>${showVal(cf, o && o[cf.k])}</div><div><b>${_t('ほかの人の値（{0}）', fmt(cf.vt, true))}</b>${showVal(cf, cf.value)}</div></div>
-        <div class="row">${go}<button data-cf="take" data-id="${cf.id}">${_t('ほかの人の値にする')}</button><button data-cf="keep" data-id="${cf.id}" class="primary">${_t('今の値のまま')}</button></div></div>`;
+        <div class="row">${go}<button data-cf="take" data-id="${esc(cf.id)}">${_t('ほかの人の値にする')}</button><button data-cf="keep" data-id="${esc(cf.id)}" class="primary">${_t('今の値のまま')}</button></div></div>`;
     }).join('')}
     <div class="row" style="display:flex;justify-content:flex-end;gap:8px"><button data-cf="keepall">${_t('すべて今の値のままにする')}</button><button data-cf="close" class="primary">${_t('閉じる')}</button></div></div>`;
+  back.firstElementChild.focus({ preventScroll: true });  // 開いている間は、キーが後ろの表に届かないように
+}
+// 「ほかの人の値」は、取り込んだファイルに直接書かれていたものかもしれないので、ファイルを開くときと同じ検査を通してから使う
+function takeConflict(cf, o) {
+  const k = cf.k, one = { ...o, [k]: clone(cf.value) };
+  const doc = { format: 'testbook', version: 2, meta: { id: 'm' }, sheets: [{ id: 's' }], runs: [{ id: 'r' }] };
+  if (cf.coll === 'meta') doc.meta = one; else (doc[cf.coll] || (doc[cf.coll] = [])).push(one);
+  const r = k === 'id' || k === 'ts' || k === 'bt' || k in {} ? null : normalize(doc);
+  const got = r && (cf.coll === 'meta' ? r.meta : r[cf.coll].find(x => x.id === o.id));
+  if (!got || (cf.value !== undefined && !(k in got))) { toast(_t('この値は使えないので、今の値のままにしました'), 'err'); return; }
+  setF(o, k, got[k]);
 }
 function resolveConflict(action, id) {
   const back = $('#cfpanel');
@@ -3316,15 +3387,22 @@ function resolveConflict(action, id) {
     if (p.board && p.sheet) { S.view = 'sheet'; S.sheet = p.sheet; render(); }
     else if (p.board && p.item) { S.sheet = p.item.sheet; if (p.run) S.run = p.run; openEvidence(p.item.id); }
     else if (p.item) {
-      S.view = 'sheet'; S.sheet = p.item.sheet; if (p.run) S.run = p.run; S.q = ''; S.vf = ''; S.curId = p.item.id;
+      S.view = 'sheet'; S.sheet = p.item.sheet; if (p.run) S.run = p.run; revealItem(p.item); S.curId = p.item.id;
       const C = cols(), j = C.findIndex(c => c.id === p.col || c.type === p.col);
       if (j > 0) S.c = j;
       render(); collapse(); paintCursor(); focusMain();
     }
     return;
   }
-  if (action === 'take' && o) setF(o, cf.k, clone(cf.value));
-  if (action === 'drop' && o) setF(o, 'deleted', true);
+  if (action === 'take' && o) takeConflict(cf, o);
+  if (action === 'drop' && o) {
+    if (cf.coll === 'sheets') {
+      if (sheets().length < 2) { toast(_t('最後のシートは削除できません'), 'err'); return; }
+      deleteSheet(o);
+      if (S.sheet === o.id) { S.sheet = sheets()[0].id; S.view = 'sheet'; }
+    } else if (cf.coll === 'items') deleteItems([o]);
+    else setF(o, 'deleted', true);
+  }
   setF(cf, 'deleted', true);
   render(); renderConflicts();
 }
@@ -3368,8 +3446,12 @@ function renderSummary() {
     <tr><td>${c.total}</td><td>${c.ok}</td><td class="${c.ng ? 'ng' : ''}">${c.ng}</td><td>${c.hold}</td><td>${c.na}</td><td>${c.none}</td></tr></table>`;
   }
   const trend = trendData(allItems, S.run);
-  let cmOpenAll = 0;
-  for (const c of D.comments) if (!c.deleted && !c.done) cmOpenAll++;
+  let cmOpenAll = 0;  // 削除した行に残ったコメントは数えない
+  buildIndex();
+  for (const [id, l] of IX.cm) {
+    const it = getItem(id);
+    if (it && !it.deleted && SH.some(s => s.id === it.sheet)) for (const c of l) if (!c.done) cmOpenAll++;
+  }
   $('#summary').innerHTML = `
     <div class="cards">
       <div class="card"><div class="k">${_t('項目数')}</div><div class="v">${t.total}</div></div>
@@ -3621,8 +3703,13 @@ async function liveDrafts() {
 }
 // 下書きはファイルと同じ形（古い下書きは JSON だけのこともあるので、どちらでも読めるように）
 const readDraft = async d => { try { return await readBook(new File([d.json], d.json.type === 'application/json' ? 'draft.json' : 'draft.html')); } catch { return null; } };
-// 起動したとき: 開いた試験の、保存していない下書きがあれば合わせる。空の状態で開いたなら、残っている下書きを開くか削除するか聞く
-async function checkDraft() {
+function applyDraft(doc) {
+  S.heldDraft = 0;
+  const st = mergeInto(D, doc);
+  if (st.n || st.conflicts) { markDirty(); render(); toast(_t('下書きを反映しました: {0}', mergeMsg(st))); }
+}
+// 開いた試験の、保存していない下書きがあれば合わせる。起動したときに空の状態なら、残っている下書きを開くか削除するか聞く（fileOpened: ファイルを選んで開いたので、ほかの下書きの一覧は出さない）
+async function checkDraft(fileOpened) {
   let keep;
   try { keep = await liveDrafts(); } catch { return; }
   if (!keep.length) return;
@@ -3633,25 +3720,25 @@ async function checkDraft() {
     if (!d) return;
     const a = await dialog({ title: _t('保存していない変更があります'), message: _t('この試験には、{0} 時点の保存していない変更（下書き）が残っています。下書きの内容を反映しますか？', fmt(mine.at, true)), ok: _t('反映する'), cancel: _t('破棄する'), cancelAnswer: 'discard' });
     if (a === 'discard') dropDraft();  // Esc や窓の外のクリックでは消さない。次に開いたときにまた聞く
-    if (a !== true) return;
-    const st = mergeInto(D, d);
-    if (st.n || st.conflicts) { markDirty(); render(); toast(_t('下書きを反映しました: {0}', mergeMsg(st))); }
+    if (a === null) S.heldDraft = mine.at;  // 一覧からもあとで反映できる（編集して下書きを置き直すまで）
+    if (a === true) applyDraft(d);
     return;
   }
-  if (live(D.items).length || live(D.elements).length) return;
+  if (fileOpened || live(D.items).length || live(D.elements).length) return;
   await draftsDialog(keep);
 }
-// 下書きの一覧。行ごとに開くか削除するかを選ぶ。今開いている試験の下書きは、開くものがないので削除だけ
+// 下書きの一覧。行ごとに開くか削除するかを選ぶ。今開いている試験の下書きは、開くものがないので削除だけ（起動時の確認を保留したものは反映もできる）
 async function draftsDialog(list) {
   while (list.length) {
     const rows = list.map((d, i) => {
-      const open = d.id === D.meta.id;
-      return `<div class="dlg-row"><div><b title="${esc(dn(d.title))}">${esc(dn(d.title))}</b><span class="muted">${fmt(d.at, true)} ・ ${fmtSize(d.json.size)}${open ? ` ・ ${_t('開いている試験')}` : ''}</span></div>${open ? '' : `<button data-r="open:${i}" class="primary">${_t('開く')}</button>`}<button data-r="del:${i}">${_t('削除')}</button></div>`;
+      const open = d.id === D.meta.id, main = !open ? `<button data-r="open:${i}" class="primary">${_t('開く')}</button>` : d.at === S.heldDraft ? `<button data-r="apply:${i}" class="primary">${_t('反映する')}</button>` : '';
+      return `<div class="dlg-row"><div><b title="${esc(dn(d.title))}">${esc(dn(d.title))}</b><span class="muted">${fmt(d.at, true)} ・ ${fmtSize(d.json.size)}${open ? ` ・ ${_t('開いている試験')}` : ''}</span></div>${main}<button data-r="del:${i}">${_t('削除')}</button></div>`;
     }).join('');
     const r = await dialog({ title: _t('保存していない下書きがあります'), message: _t('開くか、いらなければ削除してください。\n（そのままにしても、最後の変更から 30 日間は残ります）'), rows, ok: '', cancel: _t('閉じる') });
     if (!r) return;
     const [act, i] = r.split(':'), d = list[+i];
     if (act === 'open') { await openDraft(d); return; }
+    if (act === 'apply') { const doc = await readDraft(d); if (doc) applyDraft(doc); else toast(_t('下書きを読めませんでした'), 'err'); return; }
     if (await deleteDraft(d)) list = list.filter(x => x !== d);
   }
 }
@@ -3659,7 +3746,7 @@ async function openDraft(d) {
   if (S.dirty && !(await dialog({ title: _t('別のファイルを開く'), message: _t('保存していない変更は失われます。開きますか？'), ok: _t('開く'), danger: true }))) return;
   const doc = await readDraft(d);
   if (!doc) { toast(_t('下書きを読めませんでした'), 'err'); return; }
-  loadDoc(doc, null); markDirty(); restoreHandle();
+  loadDoc(doc, null); markDirty(); S.draftSeq = S.editSeq; restoreHandle();  // 中身は下書きと同じなので、編集するまで置き直さない
   toast(_t('下書きを開きました。保存すると下書きは消えます'));
 }
 // 取り消せないので確認する。消せたら true
@@ -3697,7 +3784,7 @@ async function watchFile() {
 function docMaxTs(d) { let m = 0; for (const k of COLLS) for (const o of d[k]) for (const t of Object.values(o.ts || {})) if (t > m) m = t; return m; }
 function loadDoc(d, handle) {
   D = d;
-  S.handle = handle || null; S.perm = undefined; S.dirty = false; S.savedAt = null; S.lastMod = 0; S.autoSavedAt = null; S.draftSeq = S.editSeq; S.qPrev = null;
+  S.handle = handle || null; S.perm = undefined; S.dirty = false; S.savedAt = null; S.lastMod = 0; S.autoSavedAt = null; S.draftSeq = S.editSeq; S.heldDraft = 0; S.qPrev = null;
   S.cf = {}; S.cfVer++; S.fold = {}; S.foldVer++; S.sort = null; S.sortVer++;
   S.sheet = (caseSheets()[0] || sheets()[0]).id; S.run = runs()[0].id; S.r = 0; S.c = 1; S.curId = null;
   S.view = 'sheet'; S.q = ''; S.vf = ''; S.bSel = null; S.bEdit = null; S.ar = 0; S.ac = 1;
@@ -3720,6 +3807,7 @@ async function openFile() {
     if (!d) { notBook(f.name); return; }
     loadDoc(d, h); S.lastMod = f.lastModified;
     toast(_t('{0} を開きました', f.name));
+    await checkDraft(true);
   } catch (e) { if (e.name !== 'AbortError') toast(_t('開けませんでした: ') + e.message, 'err'); }
 }
 /* 別の試験ファイルをシートごと取り込むとき: 同じ名前の実施回（「1回目」など）は同じものとして扱う。
@@ -3886,9 +3974,7 @@ const actions = {
     if (sheets().length < 2) { toast(_t('最後のシートは削除できません'), 'err'); return; }
     if (!(await dialog({ title: _t('シートを削除'), message: _t('「{0}」とその内容を削除しますか？', dn(s.name)), ok: _t('削除'), danger: true }))) return;
     snap();
-    setF(s, 'deleted', true);
-    for (const it of itemsOf(s.id)) setF(it, 'deleted', true);
-    for (const e of elementsOf(sheetOwner(s.id))) setF(e, 'deleted', true);
+    deleteSheet(s);
     S.sheet = sheets()[0].id; S.view = 'sheet'; render();
   },
   runMenu(btn) {
@@ -4007,7 +4093,7 @@ const actions = {
     const sh = curSheet(), lv = foldCol(sh), k = btn.dataset.k;
     const it = itemsOf(sh.id).find(x => (x[lv.id] || '') === k);
     if (!it) return;
-    if (S.q || S.vf) { S.q = ''; S.vf = ''; renderToolbar(); }
+    revealItem(it); renderToolbar();
     S.curId = it.id; S.c = Math.max(S.c, 1);
     renderGrid(); collapse(); paintCursor(); focusMain();
   },
@@ -4141,7 +4227,7 @@ const actions = {
     const message = rows.length > 1 ? _t('{0} 行を削除しますか？', rows.length) + (used ? _t('結果やエビデンスがある行も含まれます。') : '') : _t('この行には結果やエビデンスがあります。削除しますか？');
     if ((rows.length > 1 || used) && !(await dialog({ title: _t('行を削除'), message, ok: _t('削除'), danger: true }))) return;
     snap();
-    for (const it of rows) setF(it, 'deleted', true);
+    deleteItems(rows);
     S.curId = null; S.r = rng().r0; collapse();
     renderGrid(); renderProgress(); focusMain();
   },
@@ -4189,6 +4275,7 @@ const actions = {
         if (!v || !v.includes(from)) continue;
         // 1文字ずつの書式があるセルは、書式の区切りごとに置き換えて書式を残す（区切りをまたぐ語は置き換わらない）
         const runs = cellRuns(it, c);
+        if (runs && !runs.some(x => x.t.includes(from))) continue;
         if (runs) { const nr = runs.map(x => ({ ...x, t: x.t.split(from).join(to) })).filter(x => x.t); setCellRich(it, c, runText(nr), nr.length ? nr : null); }
         else setCell(it, c, v.split(from).join(to));
         n++;
@@ -4449,6 +4536,12 @@ function bind() {
   });
   document.addEventListener('keydown', e => {
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+    // ダイアログや競合の一覧を開いている間は、後ろの画面の操作を始めない（ブラウザの保存や検索の窓も出さない）
+    if (document.querySelector('.dlg-back')) {
+      if (mod && /^[sfmh]$/.test(k)) e.preventDefault();
+      if (e.key === 'Escape' && $('#cfpanel')) { $('#cfpanel').remove(); focusMain(); }
+      return;
+    }
     if (mod && k === 's') { e.preventDefault(); save(e.shiftKey); }
     // Ctrl+F は表の検索欄へ（見えていない行はブラウザの検索では見つからないので）、Ctrl+H は置換、Ctrl+M はコメント
     if (mod && k === 'f' && !$('#main').hidden && $('#q')) { e.preventDefault(); const q = $('#q'); q.focus(); q.select(); }
@@ -4456,7 +4549,7 @@ function bind() {
     if (mod && k === 'h' && !$('#main').hidden && !S.editing) { e.preventDefault(); actions.replace(); }
     // 文字の入力中はブラウザの Ctrl+Z に任せ、表やボードを触っているときだけ操作を戻す
     const inText = e.target !== el && (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable);
-    if (mod && (k === 'z' || k === 'y') && !inText && !S.editing && !document.querySelector('.dlg-back')) {
+    if (mod && (k === 'z' || k === 'y') && !inText && !S.editing) {
       e.preventDefault(); undo(k === 'y' || e.shiftKey);
     }
     if (e.key === 'Escape') hidePop();
@@ -4492,7 +4585,7 @@ function bind() {
     if (!files.length) return;
     if (e.target.dataset.mode === 'open') {
       const d = await readBook(files[0]);
-      if (d) loadDoc(d, null); else notBook(files[0].name);
+      if (d) { loadDoc(d, null); await checkDraft(true); } else notBook(files[0].name);
     } else importFiles(files);
   });
   $('#elfile').addEventListener('change', async e => {
