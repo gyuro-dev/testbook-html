@@ -6,6 +6,10 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+### Added
+
+- Unsaved drafts can be deleted. The prompt shown when you open an empty page is now a list of all the drafts in the browser, newest first, with "Open" and "Delete" for each; "⋯ → Unsaved drafts…" shows the same list at any time. Deleting asks for confirmation. Before, only the newest draft was offered, and the older ones could not be reached.
+
 ## [0.2.0] - 2026-11-01
 
 ### Added

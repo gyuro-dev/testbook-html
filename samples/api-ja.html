@@ -324,6 +324,11 @@ table.st{border-collapse:collapse;background:var(--panel);border:1px solid var(-
 .dlg input{width:100%;margin-bottom:12px}
 .dlg .row{display:flex;justify-content:flex-end;gap:8px}
 .dlg .danger{background:var(--ng);border-color:var(--ng);color:#fff}
+.dlg-rows{max-height:50vh;overflow:auto;margin-bottom:12px;border-bottom:1px solid var(--line)}
+.dlg-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.dlg-row>div{flex:1;min-width:0}
+.dlg-row b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlg-row .muted{font-size:12px}
 #toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);z-index:500000;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
 #toast div{background:#222833;color:#fff;padding:8px 14px;border-radius:8px;box-shadow:var(--shadow);font-size:12px;animation:tin .15s ease-out}
 #toast div.err{background:var(--ng)}
@@ -431,7 +436,7 @@ const EN = {
   '「{0}」とその内容を削除しますか？': 'Delete "{0}" and everything in it?',
   '「{0}」について': 'About "{0}"',
   '「{0}」の ID を、今の並び順に {1} から振り直します。ほかの資料で参照している ID も変わるので注意してください。': 'This renumbers the IDs in "{0}" from {1} in the current order. IDs referenced from other documents will change.',
-  '「{0}」の {1} 時点の下書きが残っています。開きますか？\n（開かなくても、下書きは 30 日間残ります）': 'A draft of "{0}" from {1} is still here. Open it?\n(If not, the draft is kept for 30 days)',
+  '「{0}」の {1} 時点の下書きを削除しますか？削除すると元に戻せません。': 'Delete the draft of "{0}" from {1}? This cannot be undone.',
   '「{0}」の値で絞り込む': 'Filter by values of "{0}"',
   '列「{0}」とその内容を削除しますか？': 'Delete the column "{0}" and its contents?',
   '「{0}」の列にする': 'Make this the "{0}" column',
@@ -448,6 +453,7 @@ const EN = {
   'このシート（{0}）': 'This sheet ({0})',
   'このブラウザでは上書き保存ができないため、ダウンロードとして保存しました': 'This browser cannot overwrite files, so it was downloaded instead',
   'この行には結果やエビデンスがあります。削除しますか？': 'This row has results or evidence. Delete it?',
+  'いま開いている試験なので、画面の内容はそのままです。': 'This test is open now, so what is on screen stays as it is.',
   'この試験には、{0} 時点の保存していない変更（下書き）が残っています。下書きの内容を反映しますか？': 'This test has unsaved changes (a draft) from {0}. Merge them in?',
   'この項目について': 'About this item',
   'この試験項目の履歴をすべて消す（Ctrl+Z で元に戻せます）': 'Clear all history of this item (Ctrl+Z to undo)',
@@ -504,6 +510,9 @@ const EN = {
   '一番上に行を追加': 'Add a row at the top',
   '一番下に行を追加': 'Add a row at the bottom',
   '下に行を追加': 'Add a row below',
+  '下書きを削除': 'Delete draft',
+  '下書きを削除しました: {0}': 'Deleted the draft: {0}',
+  '下書きを削除できませんでした': 'Could not delete the draft',
   '下書きを反映しました: {0}': 'Merged the draft: {0}',
   '下書きを読めませんでした': 'Could not read the draft',
   '下書きを開きました。保存すると下書きは消えます': 'Draft opened. Saving removes the draft',
@@ -520,6 +529,8 @@ const EN = {
   '作成者': 'Author',
   '保存': 'Save',
   '保存していない下書きがあります': 'Unsaved draft found',
+  '保存していない下書きはありません': 'No unsaved drafts',
+  '保存していない下書き…': 'Unsaved drafts…',
   '保存していない変更があります': 'Unsaved changes',
   '保存していない変更は失われます。': 'Unsaved changes will be lost.',
   '保存していない変更は失われます。開きますか？': 'Unsaved changes will be lost. Open anyway?',
@@ -735,8 +746,9 @@ const EN = {
   '選択肢を編集': 'Edit options',
   '選択肢を編集…': 'Edit options…',
   '閉じる': 'Close',
-  '開かない': 'Do not open',
+  '開いている試験': 'Open now',
   '開く': 'Open',
+  '開くか、いらなければ削除してください。\n（そのままにしても、最後の変更から 30 日間は残ります）': 'Open a draft, or delete it if you no longer need it.\n(A draft you leave is kept for 30 days after its last change)',
   '開けませんでした: ': 'Could not open: ',
   '降順': 'descending',
   '降順に並べ替え': 'Sort descending',
@@ -1515,7 +1527,8 @@ function afterChange() {
 
 /* ---------- 名前・ダイアログ ---------- */
 // input: 1つの入力欄（答えはその文字）。inputs: [{ label, value }] で何個か（答えは文字の配列）。どちらもなければ true / null
-function dialog({ title, message = '', input = null, inputs = null, ok = 'OK', cancel = _t('キャンセル'), danger = false }) {
+// rows: 行の HTML。行の中の data-r のボタンを押すと、その値が答えになる（Enter は今フォーカスのあるボタンを押す）。ok を空にすると OK のボタンは出ない
+function dialog({ title, message = '', input = null, inputs = null, rows = '', ok = 'OK', cancel = _t('キャンセル'), danger = false }) {
   return new Promise(res => {
     const back = document.createElement('div');
     back.className = 'dlg-back';
@@ -1524,19 +1537,24 @@ function dialog({ title, message = '', input = null, inputs = null, ok = 'OK', c
       ${inputs ? inputs.map((f, i) => `<label class="fl" style="margin-bottom:10px">${esc(f.label)}${f.options
         ? `<select data-i="${i}">${f.options.map(([v, l]) => `<option value="${esc(v)}"${v === f.value ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
         : `<input type="text" data-i="${i}" value="${esc(f.value || '')}" style="margin:0">`}</label>`).join('') : ''}
-      <div class="row">${cancel ? `<button data-r="0">${esc(cancel)}</button>` : ''}<button data-r="1" class="${danger ? 'danger' : 'primary'}">${esc(ok)}</button></div></div>`;
+      ${rows ? `<div class="dlg-rows">${rows}</div>` : ''}
+      <div class="row">${cancel ? `<button data-r="0">${esc(cancel)}</button>` : ''}${ok ? `<button data-r="1" class="${danger ? 'danger' : 'primary'}">${esc(ok)}</button>` : ''}</div></div>`;
     const inp = back.querySelector('input');
     const answer = () => inputs ? [...back.querySelectorAll('[data-i]')].map(i => i.value) : inp ? inp.value : true;
-    const done = r => { back.remove(); document.removeEventListener('keydown', key, true); res(r ? answer() : null); setTimeout(focusMain); };
+    const done = r => { back.remove(); document.removeEventListener('keydown', key, true); res(r === '1' ? answer() : r === '0' ? null : r); setTimeout(focusMain); };
     const key = e => {
       if (e.isComposing) return;
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); }
-      if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(true); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done('0'); }
+      if (e.key === 'Enter') {
+        e.preventDefault(); e.stopPropagation();
+        if (!rows) done('1');
+        else { const b = document.activeElement && document.activeElement.closest('.dlg [data-r]'); if (b) done(b.dataset.r); }  // 表のセルにも data-r がある
+      }
     };
-    back.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r === '1'); else if (e.target === back) done(false); });
+    back.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r); else if (e.target === back) done('0'); });
     document.addEventListener('keydown', key, true);
     document.body.appendChild(back);
-    (inp || back.querySelector('input[data-i], select[data-i]') || back.querySelector('[data-r="1"]')).focus();
+    (inp || back.querySelector('input[data-i], select[data-i]') || (rows ? back.querySelector('.dlg-rows .primary, [data-r="0"]') : back.querySelector('[data-r="1"]'))).focus();
     if (inp) inp.select();
   });
 }
@@ -3592,21 +3610,25 @@ async function saveDraft() {
   } catch { /* IndexedDB が使えない環境（プライベートモードなど）では下書きを置かない */ }
   finally { S.saving = false; }
 }
-function dropDraft() { idb('drafts', 'readwrite', st => st.delete(D.meta.id)).catch(() => {}); }
+function dropDraft(id = D.meta.id) { idb('drafts', 'readwrite', st => st.delete(id)).catch(() => {}); }
 const DRAFT_KEEP = 30 * 864e5;
-// 起動したとき: 開いた試験の、保存していない下書きがあれば合わせる。空の状態で開いたなら、一番新しい下書きを開くか聞く
-async function checkDraft() {
-  let all;
-  try { all = await idb('drafts', 'readonly', st => st.getAll()); } catch { return; }
+// 残っている下書き（新しい順）。30 日より古いものはここで捨てる
+async function liveDrafts() {
   const t = now(), keep = [];
-  for (const d of all || []) { if (t - d.at > DRAFT_KEEP) idb('drafts', 'readwrite', st => st.delete(d.id)).catch(() => {}); else keep.push(d); }
+  for (const d of (await idb('drafts', 'readonly', st => st.getAll())) || []) { if (t - d.at > DRAFT_KEEP) dropDraft(d.id); else keep.push(d); }
+  return keep.sort((a, b) => b.at - a.at);
+}
+// 下書きはファイルと同じ形（古い下書きは JSON だけのこともあるので、どちらでも読めるように）
+const readDraft = async d => { try { return await readBook(new File([d.json], d.json.type === 'application/json' ? 'draft.json' : 'draft.html')); } catch { return null; } };
+// 起動したとき: 開いた試験の、保存していない下書きがあれば合わせる。空の状態で開いたなら、残っている下書きを開くか削除するか聞く
+async function checkDraft() {
+  let keep;
+  try { keep = await liveDrafts(); } catch { return; }
   if (!keep.length) return;
-  // 下書きはファイルと同じ形（古い下書きは JSON だけのこともあるので、どちらでも読めるように）
-  const read = async d => { try { return await readBook(new File([d.json], d.json.type === 'application/json' ? 'draft.json' : 'draft.html')); } catch { return null; } };
   const mine = keep.find(d => d.id === D.meta.id);
   if (mine) {
     if (mine.at <= S.docMax) return;  // ファイルのほうが新しい（保存したあとの下書き消し忘れ）
-    const d = await read(mine);
+    const d = await readDraft(mine);
     if (!d) return;
     if (!(await dialog({ title: _t('保存していない変更があります'), message: _t('この試験には、{0} 時点の保存していない変更（下書き）が残っています。下書きの内容を反映しますか？', fmt(mine.at, true)), ok: _t('反映する'), cancel: _t('破棄する') }))) { dropDraft(); return; }
     const st = mergeInto(D, d);
@@ -3614,12 +3636,39 @@ async function checkDraft() {
     return;
   }
   if (live(D.items).length || live(D.elements).length) return;
-  const latest = keep.sort((a, b) => b.at - a.at)[0];
-  if (!(await dialog({ title: _t('保存していない下書きがあります'), message: _t('「{0}」の {1} 時点の下書きが残っています。開きますか？\n（開かなくても、下書きは 30 日間残ります）', latest.title, fmt(latest.at, true)), ok: _t('開く'), cancel: _t('開かない') }))) return;
-  const d = await read(latest);
-  if (!d) { toast(_t('下書きを読めませんでした'), 'err'); return; }
-  loadDoc(d, null); markDirty(); restoreHandle();
+  await draftsDialog(keep);
+}
+// 下書きの一覧。行ごとに開くか削除するかを選ぶ。今開いている試験の下書きは、開くものがないので削除だけ
+async function draftsDialog(list) {
+  while (list.length) {
+    const rows = list.map((d, i) => {
+      const open = d.id === D.meta.id;
+      return `<div class="dlg-row"><div><b title="${esc(dn(d.title))}">${esc(dn(d.title))}</b><span class="muted">${fmt(d.at, true)} ・ ${fmtSize(d.json.size)}${open ? ` ・ ${_t('開いている試験')}` : ''}</span></div>${open ? '' : `<button data-r="open:${i}" class="primary">${_t('開く')}</button>`}<button data-r="del:${i}">${_t('削除')}</button></div>`;
+    }).join('');
+    const r = await dialog({ title: _t('保存していない下書きがあります'), message: _t('開くか、いらなければ削除してください。\n（そのままにしても、最後の変更から 30 日間は残ります）'), rows, ok: '', cancel: _t('閉じる') });
+    if (!r) return;
+    const [act, i] = r.split(':'), d = list[+i];
+    if (act === 'open') { await openDraft(d); return; }
+    if (await deleteDraft(d)) list = list.filter(x => x !== d);
+  }
+}
+async function openDraft(d) {
+  if (S.dirty && !(await dialog({ title: _t('別のファイルを開く'), message: _t('保存していない変更は失われます。開きますか？'), ok: _t('開く'), danger: true }))) return;
+  const doc = await readDraft(d);
+  if (!doc) { toast(_t('下書きを読めませんでした'), 'err'); return; }
+  loadDoc(doc, null); markDirty(); restoreHandle();
   toast(_t('下書きを開きました。保存すると下書きは消えます'));
+}
+// 取り消せないので確認する。消せたら true
+async function deleteDraft(d) {
+  const open = d.id === D.meta.id, name = dn(d.title);
+  const message = _t('「{0}」の {1} 時点の下書きを削除しますか？削除すると元に戻せません。', name, fmt(d.at, true)) + (open ? '\n' + _t('いま開いている試験なので、画面の内容はそのままです。') : '');
+  if (!(await dialog({ title: _t('下書きを削除'), message, ok: _t('削除'), danger: true }))) return false;
+  while (S.saving) await new Promise(r => setTimeout(r, 50));  // 下書きを書いている途中なら、終わるのを待つ（消したあとに書かれないように）
+  if (open) S.draftSeq = S.editSeq;  // 今の内容をまた下書きに置かない。次に編集したら置く
+  try { await idb('drafts', 'readwrite', st => st.delete(d.id)); } catch { toast(_t('下書きを削除できませんでした'), 'err'); return false; }
+  toast(_t('下書きを削除しました: {0}', name));
+  return true;
 }
 async function pullFrom(f) {
   try {
@@ -3773,7 +3822,7 @@ const actions = {
   open: openFile,
   import: () => { $('#filein').dataset.mode = 'import'; $('#filein').click(); },
   more(btn) {
-    showPop(btn, `<div class="pop-h">testbook ${APP_VERSION}</div><button data-act="saveAs">${_t('名前を付けて保存')}</button><button data-act="autoToggle">${_t('自動保存（入力が止まったら上書き）')}${S.auto ? '<span>✓</span>' : ''}</button>
+    showPop(btn, `<div class="pop-h">testbook ${APP_VERSION}</div><button data-act="saveAs">${_t('名前を付けて保存')}</button><button data-act="autoToggle">${_t('自動保存（入力が止まったら上書き）')}${S.auto ? '<span>✓</span>' : ''}</button><button data-act="drafts">${_t('保存していない下書き…')}</button>
       <button data-act="csv">${_t('このシートを CSV で書き出す')}</button><button data-act="report">${_t('報告書を印刷（PDF）…')}</button><hr>
       <button data-act="issueUrl">${_t('不具合票のリンク…')}${D.meta.issueUrl ? '<span>✓</span>' : ''}</button><button data-act="histClearAll">${_t('結果の履歴をすべて消す…')}</button><hr>
       <button data-act="lang">${LANG === 'ja' ? 'English' : '日本語'}</button><button data-act="newDoc">${_t('新しい試験ファイル')}</button><hr>
@@ -3783,6 +3832,12 @@ const actions = {
   saveAs: () => save(true),
   csv: () => { hidePop(); exportCsv(); },
   report: printReport,
+  async drafts() {
+    hidePop();
+    let list;
+    try { list = await liveDrafts(); } catch { toast(_t('下書きを読めませんでした'), 'err'); return; }
+    if (list.length) await draftsDialog(list); else toast(_t('保存していない下書きはありません'));
+  },
   autoToggle() { hidePop(); S.auto = !S.auto; lsSet('testbook.autosave', S.auto ? '1' : '0'); renderStatus(); toast(S.auto ? _t('自動保存: 入力が止まると保存先に上書きします') : _t('自動保存をオフにしました（保存は Ctrl+S）')); },
   // 開き直さずにその場で切り替える（保存していない変更もそのまま）。骨組みは文言だけ付け直し、ほかは描き直す
   lang() {
