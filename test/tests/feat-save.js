@@ -97,14 +97,150 @@
     const id = D.meta.id;
     // ブラウザを閉じて、testbook.html をまた開いた（まっさら）
     loadDoc(newDoc());
-    let asked = null; window.dialog = async o => { asked = o; return true; };
+    let asked = null; window.dialog = async o => { asked = o; return 'open:0'; };
     await checkDraft();
-    ok(asked && asked.title === '保存していない下書きがあります' && asked.message.includes('消えかけた試験'), '聞く: ' + (asked && asked.message));
+    ok(asked && asked.title === '保存していない下書きがあります' && asked.rows.includes('消えかけた試験'), '聞く: ' + (asked && asked.rows));
     eq([D.meta.id, D.meta.title, item(1)[K()], S.dirty], [id, '消えかけた試験', '復元される行', true], '開くと戻る');
-    // 「開かない」なら残したまま
+    // 閉じるなら残したまま
     loadDoc(newDoc()); window.dialog = async () => null;
     await checkDraft();
     eq(itemsOf(S.sheet).length, 0, '開かない'); ok(await draftOf(id), '下書きは残る');
+  });
+
+  // 下書きを直接置く（中身は本当の試験ファイルの形）。一覧の試験は本物のダイアログを押す
+  const putDraft = async (id, title, at, json) => {
+    const doc = newDoc(); doc.meta.id = id; doc.meta.title = title;
+    if (!json) { const cur = D; D = doc; json = fileBlob(); D = cur; }
+    await idb('drafts', 'readwrite', st => st.put({ id, title, at, json }, id));
+  };
+  const rowTitles = () => [...TB.dlg().querySelectorAll('.dlg-row b')].map(b => b.textContent);
+  const pushBtn = async sel => { await TB.until(() => TB.dlg() && TB.dlg().querySelector(sel)); TB.click(TB.dlg().querySelector(sel)); await TB.frame(); };
+  const waitDlg = () => TB.until(() => TB.dlg());
+  const realDialog = () => { window.dialog = TB.realDialog; };
+
+  test('下書きの削除: 空の状態で開いたときの一覧に新しい順に全部並び、確認してから消す', async () => {
+    await clearDrafts(); realDialog();
+    const t = now();
+    await putDraft('d_a', '古いほう', t - 864e5);
+    await putDraft('d_b', '新しいほう', t - 1000);
+    const p = checkDraft(); await waitDlg();
+    eq(rowTitles(), ['新しいほう', '古いほう'], '新しい順');
+    eq(document.activeElement.dataset.r, 'open:0', '最初は一番新しい下書きの「開く」に');
+    // 確認でやめると、消さずに一覧に戻る
+    await pushBtn('[data-r="del:0"]');
+    ok(TB.dlg().querySelector('.danger') && TB.dlg().textContent.includes('元に戻せません'), '確認が出る');
+    TB.key(document.activeElement, 'Escape'); await waitDlg();
+    eq(rowTitles(), ['新しいほう', '古いほう'], 'やめたら一覧に戻る');
+    ok(await draftOf('d_b'), 'やめたら残る');
+    // 確認すると消え、残りが一覧に残る
+    await pushBtn('[data-r="del:0"]');
+    await pushBtn('.danger');
+    await TB.until(() => TB.dlg() && TB.dlg().querySelectorAll('.dlg-row').length === 1);
+    eq(rowTitles(), ['古いほう'], '消したものは一覧から消える');
+    eq(await draftOf('d_b'), undefined, '消える');
+    ok(await draftOf('d_a'), 'ほかの下書きは残る');
+    ok(TB.toasts().some(s => s.includes('下書きを削除しました: 新しいほう')), 'お知らせ');
+    // 最後の 1 件を消すと一覧も閉じる
+    await pushBtn('[data-r="del:0"]');
+    await pushBtn('.danger');
+    await p;
+    eq([TB.dlg(), await draftOf('d_a')], [null, undefined], '全部消えたら閉じる');
+    eq(itemsOf(S.sheet).length, 0, '画面はそのまま');
+  });
+
+  test('下書きの削除: ⋯ メニューから一覧を開ける。一番新しくない下書きも開ける。なければお知らせだけ', async () => {
+    await clearDrafts(); realDialog();
+    TB.click('[data-act="more"]');
+    TB.click('#pop [data-act="drafts"]');
+    await TB.until(() => TB.toasts().some(s => s.includes('保存していない下書きはありません')));
+    ok(TB.toasts().some(s => s.includes('保存していない下書きはありません')), 'なければお知らせ'); eq(TB.dlg(), null, '一覧は出ない');
+    const t = now();
+    await putDraft('d_a', '古いほう', t - 864e5);
+    await putDraft('d_b', '新しいほう', t - 1000);
+    await putDraft('d_old', '期限切れ', t - 40 * 864e5);
+    TB.click('[data-act="more"]');
+    TB.click('#pop [data-act="drafts"]');
+    await waitDlg();
+    eq(rowTitles(), ['新しいほう', '古いほう'], '期限切れは出ない');
+    await pushBtn('[data-r="open:1"]');
+    await TB.until(() => D.meta.id === 'd_a');
+    eq([D.meta.id, D.meta.title, S.dirty], ['d_a', '古いほう', true], '選んだ下書きが開く');
+    ok(await draftOf('d_b'), 'ほかの下書きは残る');
+    eq(await draftOf('d_old'), undefined, '期限切れは捨てる');
+  });
+
+  test('下書きの削除: 今の変更が保存されていないときに別の下書きを開くなら確認する', async () => {
+    await clearDrafts(); realDialog();
+    await putDraft('d_a', '別の試験', now() - 1000);
+    snap(); setF(addItem(), K(), '今の変更');
+    const p = (async () => draftsDialog(await liveDrafts()))(); await waitDlg();
+    await pushBtn('[data-r="open:0"]');
+    ok(TB.dlg().textContent.includes('保存していない変更は失われます'), '確認が出る');
+    TB.key(document.activeElement, 'Escape');
+    await p;
+    eq(item(1)[K()], '今の変更', 'やめたら今の試験のまま');
+  });
+
+  test('下書きの削除: 開いている試験の下書きは削除だけ。画面はそのままで、次に編集するまで置き直さない', async () => {
+    await clearDrafts(); realDialog();
+    window.showSaveFilePicker = undefined;
+    snap(); setF(addItem(), K(), '画面の行'); idle(); await autoTick();
+    const id = D.meta.id;
+    ok(await draftOf(id), '下書きがある');
+    // 下書きを置いたあとの編集がまだ書かれていなくても、消したあとに書き戻さない
+    snap(); setF(item(1), K(), '画面の行2');
+    const p = (async () => draftsDialog(await liveDrafts()))(); await waitDlg();
+    eq([TB.dlg().querySelector('[data-r="open:0"]'), TB.dlg().querySelector('.dlg-row').textContent.includes('開いている試験')], [null, true], '「開く」はなく、開いている試験と分かる');
+    await pushBtn('[data-r="del:0"]');
+    ok(TB.dlg().textContent.includes('画面の内容はそのままです'), '確認に書いてある');
+    await pushBtn('.danger');
+    await p;
+    eq(await draftOf(id), undefined, '消える');
+    eq([item(1)[K()], S.dirty], ['画面の行2', true], '画面は変わらず、保存していないまま');
+    idle(); await autoTick();
+    eq(await draftOf(id), undefined, '編集がなければ置き直さない');
+    snap(); setF(item(1), K(), '次の編集'); idle(); await autoTick();
+    ok(await draftOf(id), '次に編集したら置く');
+  });
+
+  test('下書きの削除: 読めない下書きも消せる。題名はエスケープする。Enter はフォーカスのあるボタンを押す', async () => {
+    await clearDrafts(); realDialog();
+    const evil = '<img src=x onerror=window.TB_XSS=1>';
+    await putDraft('d_bad', evil, now() - 1000, new Blob(['壊れた中身']));
+    let p = (async () => draftsDialog(await liveDrafts()))(); await waitDlg();
+    eq(rowTitles(), [evil], '題名は文字のまま');
+    eq(TB.dlg().querySelector('.dlg-row img'), null, 'タグにならない');
+    eq(document.activeElement.dataset.r, 'open:0');
+    TB.key(document.activeElement, 'Enter');  // 開く
+    await p;
+    ok(TB.toasts().some(s => s.includes('下書きを読めませんでした')), '読めなければお知らせ');
+    ok(await draftOf('d_bad'), '読めなくても勝手には消さない');
+    p = (async () => draftsDialog(await liveDrafts()))(); await waitDlg();
+    // フォーカスが一覧の外（data-r を持つ表のセルなど）にあるときの Enter は何もしない
+    const outside = document.createElement('button'); outside.dataset.r = '3'; document.body.appendChild(outside); outside.focus();
+    TB.key(outside, 'Enter'); outside.remove();
+    ok(TB.dlg() && rowTitles().length === 1, '一覧のまま');
+    TB.dlg().querySelector('[data-r="del:0"]').focus();
+    TB.key(document.activeElement, 'Enter');  // 削除（確認が出る）
+    await waitDlg();
+    ok(TB.dlg().textContent.includes('元に戻せません'), 'Enter でも確認が出る');
+    await pushBtn('.danger');
+    await p;
+    eq(await draftOf('d_bad'), undefined, '消える');
+  });
+
+  test('下書きの削除: 英語の画面でも日本語が残らない', async () => {
+    await clearDrafts(); realDialog();
+    setLang('en');
+    try {
+      await putDraft('d_a', 'A test', now() - 1000);
+      const p = (async () => draftsDialog(await liveDrafts()))(); await waitDlg();
+      eq(/[ぁ-んァ-ヶ一-龠]/.test(TB.dlg().textContent), false, '一覧: ' + TB.dlg().textContent);
+      await pushBtn('[data-r="del:0"]');
+      eq(/[ぁ-んァ-ヶ一-龠]/.test(TB.dlg().textContent), false, '確認: ' + TB.dlg().textContent);
+      await pushBtn('.danger');
+      await p;
+    } finally { setLang('ja'); }
   });
 
   test('下書き: 同じ試験のファイルを開き直したとき、下書きのほうが新しければ合わせる', async () => {

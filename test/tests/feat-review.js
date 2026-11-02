@@ -17,7 +17,7 @@
     closeEvidence(); idle(); await autoTick();
     const d = await idb('drafts', 'readonly', st => st.get(D.meta.id));
     ok(d && d.json.size > img.data.length, '下書きに画像の分の大きさがある');
-    loadDoc(newDoc()); window.dialog = async () => true;
+    loadDoc(newDoc()); window.dialog = async () => 'open:0';
     await checkDraft();
     const back = D.elements.find(e => e.id === img.id);
     ok(back && back.data === img.data, '復元した画像の中身が同じ');
