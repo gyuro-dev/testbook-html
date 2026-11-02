@@ -10,6 +10,11 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 - Unsaved drafts can be deleted. The prompt shown when you open an empty page is now a list of all the drafts in the browser, newest first, with "Open" and "Delete" for each; "⋯ → Unsaved drafts…" shows the same list at any time. Deleting asks for confirmation. Before, only the newest draft was offered, and the older ones could not be reached.
 
+### Fixed
+
+- When a test with a draft was reopened, pressing Esc or clicking outside the "Unsaved changes" prompt deleted the draft without asking. Now only "Discard" deletes it. Otherwise the draft stays and the prompt comes back the next time the test is opened, unless the test was edited or saved first.
+- In dialogs, Enter always confirmed, even with the focus on "Cancel", so it could run a delete. Enter now presses the button that has the focus, and does nothing when the focus has left the dialog.
+
 ## [0.2.0] - 2026-11-01
 
 ### Added

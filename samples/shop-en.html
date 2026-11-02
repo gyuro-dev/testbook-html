@@ -1528,8 +1528,9 @@ function afterChange() {
 
 /* ---------- 名前・ダイアログ ---------- */
 // input: 1つの入力欄（答えはその文字）。inputs: [{ label, value }] で何個か（答えは文字の配列）。どちらもなければ true / null
-// rows: 行の HTML。行の中の data-r のボタンを押すと、その値が答えになる（Enter は今フォーカスのあるボタンを押す）。ok を空にすると OK のボタンは出ない
-function dialog({ title, message = '', input = null, inputs = null, rows = '', ok = 'OK', cancel = _t('キャンセル'), danger = false }) {
+// rows: 行の HTML。行の中の data-r のボタンを押すと、その値が答えになる。ok を空にすると OK のボタンは出ない
+// cancelAnswer: キャンセルのボタンの答え。Esc や窓の外のクリック（答えは null）と分けたいときに使う
+function dialog({ title, message = '', input = null, inputs = null, rows = '', ok = 'OK', cancel = _t('キャンセル'), cancelAnswer = '0', danger = false }) {
   return new Promise(res => {
     const back = document.createElement('div');
     back.className = 'dlg-back';
@@ -1539,7 +1540,7 @@ function dialog({ title, message = '', input = null, inputs = null, rows = '', o
         ? `<select data-i="${i}">${f.options.map(([v, l]) => `<option value="${esc(v)}"${v === f.value ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
         : `<input type="text" data-i="${i}" value="${esc(f.value || '')}" style="margin:0">`}</label>`).join('') : ''}
       ${rows ? `<div class="dlg-rows">${rows}</div>` : ''}
-      <div class="row">${cancel ? `<button data-r="0">${esc(cancel)}</button>` : ''}${ok ? `<button data-r="1" class="${danger ? 'danger' : 'primary'}">${esc(ok)}</button>` : ''}</div></div>`;
+      <div class="row">${cancel ? `<button data-r="${esc(cancelAnswer)}">${esc(cancel)}</button>` : ''}${ok ? `<button data-r="1" class="${danger ? 'danger' : 'primary'}">${esc(ok)}</button>` : ''}</div></div>`;
     const inp = back.querySelector('input');
     const answer = () => inputs ? [...back.querySelectorAll('[data-i]')].map(i => i.value) : inp ? inp.value : true;
     const done = r => { back.remove(); document.removeEventListener('keydown', key, true); res(r === '1' ? answer() : r === '0' ? null : r); setTimeout(focusMain); };
@@ -1547,9 +1548,11 @@ function dialog({ title, message = '', input = null, inputs = null, rows = '', o
       if (e.isComposing) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done('0'); }
       if (e.key === 'Enter') {
+        // フォーカスのあるボタンを押す（表のセルにも data-r があるので窓の中だけ見る）。入力欄などにいれば OK。窓の外にいれば何もしない
         e.preventDefault(); e.stopPropagation();
-        if (!rows) done('1');
-        else { const b = document.activeElement && document.activeElement.closest('.dlg [data-r]'); if (b) done(b.dataset.r); }  // 表のセルにも data-r がある
+        const a = document.activeElement, b = a && a.closest('.dlg [data-r]');
+        if (b) done(b.dataset.r);
+        else if (!rows && (!a || a === document.body || back.contains(a))) done('1');
       }
     };
     back.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r); else if (e.target === back) done('0'); });
@@ -3631,7 +3634,9 @@ async function checkDraft() {
     if (mine.at <= S.docMax) return;  // ファイルのほうが新しい（保存したあとの下書き消し忘れ）
     const d = await readDraft(mine);
     if (!d) return;
-    if (!(await dialog({ title: _t('保存していない変更があります'), message: _t('この試験には、{0} 時点の保存していない変更（下書き）が残っています。下書きの内容を反映しますか？', fmt(mine.at, true)), ok: _t('反映する'), cancel: _t('破棄する') }))) { dropDraft(); return; }
+    const a = await dialog({ title: _t('保存していない変更があります'), message: _t('この試験には、{0} 時点の保存していない変更（下書き）が残っています。下書きの内容を反映しますか？', fmt(mine.at, true)), ok: _t('反映する'), cancel: _t('破棄する'), cancelAnswer: 'discard' });
+    if (a === 'discard') dropDraft();  // Esc や窓の外のクリックでは消さない。次に開いたときにまた聞く
+    if (a !== true) return;
     const st = mergeInto(D, d);
     if (st.n || st.conflicts) { markDirty(); render(); toast(_t('下書きを反映しました: {0}', mergeMsg(st))); }
     return;

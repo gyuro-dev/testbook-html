@@ -256,9 +256,36 @@
     eq(itemsOf(S.sheet).map(i => i[K()]), ['保存した行', '保存し忘れた行'], '下書きの変更が合わさる');
     ok(S.dirty && TB.toasts().some(t => t.includes('下書きを反映しました')), 'お知らせ');
     // 「捨てる」なら消える
-    loadDoc(clone(b0)); window.dialog = async () => null;
+    loadDoc(clone(b0)); window.dialog = async o => o.cancelAnswer;
     await checkDraft(); await sleep(100);
     eq(itemsOf(S.sheet).length, 1, '捨てた'); eq(await draftOf(D.meta.id), undefined, '下書きも消える');
+  });
+
+  test('下書き: 開き直したときの窓は、Esc や窓の外のクリックでは下書きを消さず、次にまた聞く。「破棄する」を押したときだけ消す', async () => {
+    await clearDrafts();
+    window.showSaveFilePicker = undefined;
+    const b0 = user(newDoc(), '田中', () => { setF(addItem(), K(), '保存した行'); });
+    loadDoc(clone(b0));
+    snap(); setF(addItem(), K(), '保存し忘れた行'); idle(); await autoTick();
+    const id = D.meta.id;
+    ok(await draftOf(id), '下書きがある');
+    window.dialog = TB.realDialog;
+    const ask = async answer => {
+      loadDoc(clone(b0));
+      const p = checkDraft();
+      await TB.until(() => TB.dlg());
+      ok(TB.dlg() && TB.dlg().textContent.includes('保存していない変更があります'), '聞く');
+      answer();
+      await p; await sleep(100);
+    };
+    await ask(() => TB.key(document.activeElement, 'Escape'));
+    ok(await draftOf(id), 'Esc では残る');
+    eq([itemsOf(S.sheet).length, S.dirty], [1, false], 'Esc では合わせない');
+    await ask(() => TB.click('.dlg-back'));
+    ok(await draftOf(id), '窓の外のクリックでは残る');
+    await ask(() => TB.click(TB.dlg().querySelector('[data-r="discard"]')));
+    eq(await draftOf(id), undefined, '「破棄する」で消える');
+    eq(itemsOf(S.sheet).length, 1, '合わせない');
   });
 
   test('下書き: ファイルのほうが新しければ（保存のあとに残った下書き）黙って無視する', async () => {
