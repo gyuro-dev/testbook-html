@@ -161,6 +161,43 @@
     eq(document.querySelectorAll('.dlg-back').length, 0, '窓は閉じる');
   });
 
+  test('ダイアログ: Enter はフォーカスのあるボタンを押す。キャンセルにいれば実行しない。窓の外にフォーカスがあれば何もしない', async () => {
+    window.dialog = TB.realDialog;
+    const open = o => dialog({ title: '行を削除', ok: '削除', danger: true, ...o });
+    // 最初は OK にいるので、そのまま Enter で OK
+    let p = open(); await sleep(0);
+    eq(document.activeElement.dataset.r, '1', '最初は OK に');
+    TB.key(document.activeElement, 'Enter');
+    eq(await p, true, 'OK にいれば実行');
+    // Tab でキャンセルに移って Enter
+    p = open(); await sleep(0);
+    TB.dlg().querySelector('[data-r="0"]').focus();
+    TB.key(document.activeElement, 'Enter');
+    eq(await p, null, 'キャンセルにいれば実行しない');
+    // 窓の外（表のセルやボタン）にフォーカスが出ているとき
+    p = open(); await sleep(0);
+    const outside = document.querySelector('[data-act="save"]');
+    outside.focus();
+    TB.key(outside, 'Enter');
+    ok(TB.dlg(), '閉じない');
+    TB.dlg().querySelector('[data-r="1"]').focus();
+    TB.key(document.activeElement, 'Enter');
+    eq(await p, true, '窓に戻せば OK');
+    // 入力欄・選択欄にいれば OK（入力した値が返る）
+    p = open({ input: '田中' }); await sleep(0);
+    TB.dlg().querySelector('input').value = '佐藤';
+    TB.key(TB.dlg().querySelector('input'), 'Enter');
+    eq(await p, '佐藤', '入力欄の Enter は OK');
+    p = open({ inputs: [{ label: '種類', value: 'a', options: [['a', 'A'], ['b', 'B']] }] }); await sleep(0);
+    TB.key(TB.dlg().querySelector('select'), 'Enter');
+    eq(await p, ['a'], '選択欄の Enter は OK');
+    // 窓の文字を押すなどしてフォーカスがどこにもないときは、ふつうの窓なら OK
+    p = open(); await sleep(0);
+    document.activeElement.blur();
+    TB.key(document.body, 'Enter');
+    eq(await p, true, 'フォーカスがなければ OK');
+  });
+
   test('名前: 名前が未設定なら、結果を付ける前に名前を聞く', async () => {
     S.me = ''; lsSet('testbook.me', '');
     snap(); addItem(); render();
