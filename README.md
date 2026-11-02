@@ -34,7 +34,7 @@ The UI is in English or Japanese. It follows the browser language, and "⋯ → 
 - **Browsers**: overwriting the file works in Edge and Chrome. Other browsers show "This browser cannot overwrite files" at the top and download a copy when you save. If your default browser is a different one, right-click the file and choose "Open with" → Edge or Chrome.
 - **Permission to overwrite**: after the browser is restarted, the first save may ask whether the page may edit the file. Until you allow it, autosave does not overwrite the file: the top bar says "save with Ctrl+S", and changes are kept as a draft in the browser.
 - **Copied files**: when you open a copy of a test file (copied or renamed), the first save asks where to save again, so the original file is never overwritten by surprise.
-- **Autosave and drafts**: "⋯ → Autosave (overwrite when typing stops)" turns autosave on or off. Changes not yet saved are kept as a draft inside the browser and offered back the next time. The list shown when you open an empty page, or "⋯ → Unsaved drafts…", lets you open or delete the drafts that are left. This works only in the same browser on the same PC, and clearing the browser's data clears the drafts too.
+- **Autosave and drafts**: "⋯ → Autosave (overwrite when typing stops)" turns autosave on or off. Changes not yet saved are kept as a draft inside the browser and offered back the next time. The list shown when you open an empty page, or "⋯ → Unsaved drafts…", lets you open or delete the drafts that are left. If you close the "Unsaved changes" prompt with Esc, the same list lets you apply that draft until you edit the test. This works only in the same browser on the same PC, and clearing the browser's data clears the drafts too.
 - **Several people**: everyone starts from the same test file (one somebody saved and handed out). Files that each person started from an empty `testbook.html` are different tests: importing one adds its sheets as they are, and only runs with the same name (such as "Run 1") are treated as the same run.
 - **File size**: many images make a large file. When it no longer fits in an e-mail, hand it over through a shared folder. For big logs or videos, write the path as text instead. On a PC with 8 GB of memory, stay under about 1 GB for image-heavy tests and about 300,000 rows for row-heavy ones.
 - **Moving to a new version**: a test file carries the app inside, so it keeps running the version it was saved with. To move it to a new version, open the new `testbook.html`, choose the test file with "Open", and save. Files saved with version 0.1 or later will keep opening in later versions.
@@ -241,7 +241,7 @@ bash test/run.sh                                          macOS / Linux
 ```
 
 - `-Filter マージ` (`--filter マージ`) runs only the tests whose name contains the text (test names are in Japanese). `-Show` (`--show`) opens a visible browser with the developer tools. `-Browser edge` or `TB_BROWSER=path` picks the browser.
-- When everything passes it prints `196 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
+- When everything passes it prints `219 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
 - `-Update` (`--update`) rewrites the golden files in `test\golden\` and the files in `samples\` after an intentional change; `git diff` then shows what changed.
 
 #### How it works

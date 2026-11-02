@@ -6,6 +6,28 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+### Fixed
+
+- With an issue link template set, text containing an apostrophe (`don't`) showed a broken link to issue 39. A template with both `{n}` and `{key}` could also rewrite the links it had just made.
+- Deleting a row or a sheet left the evidence images and files in the saved file, so it never got smaller. They are now removed on save, and undo brings them back. Files saved earlier keep what they already contain.
+- "Open comments" in the summary counted comments on deleted rows.
+- When a merge kept a deleted row because someone had changed it, its evidence now stays with it.
+- When a merge found rows or board items still in use on a deleted sheet, the rows stayed but the sheet did not, so nobody could see them. The sheet now stays, with what was deleted along with it, and the conflict list asks what to do.
+- After closing the "Unsaved changes" prompt with Esc, the draft could not be applied later. "⋯ → Unsaved drafts…" now offers "Apply" for it until the test is edited.
+- A draft was not offered when a file was picked with "Open", only when the page itself was opened.
+- Opening a draft from the list rewrote it a few seconds later even without an edit, which changed its time.
+- Ctrl+S, Ctrl+F, Ctrl+M and Ctrl+H still acted behind an open dialog, and could stack a second one. The conflict list left the focus on the table behind it, so keys could change the table. It now takes the focus and closes with Esc.
+- The table jumped 40 px narrower while dragging a column edge.
+- Alt+↑/↓ moved rows while the table was sorted, unlike dragging.
+- Replace counted cells where the text spans a formatting boundary, though nothing was replaced.
+- The table of contents and "Go there" in the conflict list did not reach rows hidden by a column filter or a folded group.
+
+### Security
+
+- Deleted board items in an imported file skipped the checks on their values. If a merge brought such an item back, those values could reach the page as HTML. They are now checked like any other item.
+- A conflict entry written into an imported file could put unchecked values on a board item, a sheet or a run when "Use their value" was pressed, and those values could reach the page as HTML. The value now goes through the same checks as opening a file, and a value that fails is not used.
+- An imported table with no cells, or text with malformed formatting, could stop the board from drawing. They are now repaired on import.
+
 ## [0.2.1] - 2026-11-02
 
 ### Fixed
