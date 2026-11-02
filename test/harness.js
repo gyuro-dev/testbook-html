@@ -167,7 +167,7 @@
         // 毎回まっさらな試験ファイルから始める（dialog は出さずに「OK」にする）
         for (const d of document.querySelectorAll('.dlg-back')) d.remove();
         Object.assign(window, orig);
-        loadDoc(newDoc()); S.me = '田中'; window.dialog = async () => true; S.handle = null; S.elClip = null; S.editing = false;
+        loadDoc(newDoc()); S.me = '田中'; window.dialog = async () => true; S.handle = null; S.elClip = null; S.editing = false; S.swallowClick = 0;
         await t.fn();
         if (errs.length) throw new Error('想定外のエラー: ' + errs.join(' / '));
         pass++; log('TBTEST', `ok ${t.name}`);
