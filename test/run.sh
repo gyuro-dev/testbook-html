@@ -90,7 +90,7 @@ done < <(pick 'TBTEST')
 if [ "$failed" -gt 0 ]; then
   echo
   echo "---- NG の理由 ----"
-  sed -n 's/^\[[^]]*\] "\(TBTEST NG .*\|TBMSG .*\)", source: .*$/\1/p' "$log" | sed -e 's/^TBTEST NG /\n■ /' -e 's/^TBMSG /    /'
+  sed -E -n 's/^\[[^]]*\] "(TBTEST NG .*|TBMSG .*)", source: .*$/\1/p' "$log" | awk 'sub(/^TBTEST NG /, "\n■ ") || sub(/^TBMSG /, "    ")'
 fi
 if [ "$update" = 1 ]; then
   while IFS= read -r line; do
