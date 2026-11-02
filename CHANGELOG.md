@@ -6,12 +6,11 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
-### Added
-
-- Unsaved drafts can be deleted. The prompt shown when you open an empty page is now a list of all the drafts in the browser, newest first, with "Open" and "Delete" for each; "⋯ → Unsaved drafts…" shows the same list at any time. Deleting asks for confirmation. Before, only the newest draft was offered, and the older ones could not be reached.
+## [0.2.1] - 2026-11-02
 
 ### Fixed
 
+- Only the newest unsaved draft could be opened, older ones could not be reached, and no draft could be deleted before it expired. The prompt shown when you open an empty page is now a list of all the drafts in the browser, newest first, with "Open" and "Delete" for each, and "⋯ → Unsaved drafts…" shows the same list at any time. Deleting asks for confirmation.
 - When a test with a draft was reopened, pressing Esc or clicking outside the "Unsaved changes" prompt deleted the draft without asking. Now only "Discard" deletes it. Otherwise the draft stays and the prompt comes back the next time the test is opened, unless the test was edited or saved first.
 - In dialogs, Enter always confirmed, even with the focus on "Cancel", so it could run a delete. Enter now presses the button that has the focus, and does nothing when the focus has left the dialog.
 
@@ -56,6 +55,7 @@ First public version.
 - Ready-made samples in `samples/`.
 - Automated tests that run in headless Chrome or Edge on Windows, Linux and macOS.
 
-[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/gyuro-dev/testbook-html/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/gyuro-dev/testbook-html/releases/tag/v0.1.0
