@@ -1246,7 +1246,7 @@ function mergeObj(a, b, coll, ctx) {
     if (x === y) continue;
     const bNewer = y > x, win = bNewer ? b : a, lose = bNewer ? a : b, lt = Math.min(x, y);
     if (ctx && coll !== 'conflicts' && !NO_CONFLICT.has(k) && !a.deleted && !b.deleted &&
-      ((win.bt && win.bt[k]) || 0) < lt && JSON.stringify(win[k]) !== JSON.stringify(lose[k])) {
+      ((win.bt && win.bt[k]) || 0) < lt && JSON.stringify(win[k]) !== JSON.stringify(lose[k]) && safeId(k)) {  // k は競合の ID に入る。ファイルの値なので形を確かめる
       ctx.conflicts.push({ coll, obj: a.id, k, value: clone(lose[k]), vt: lt });
     }
     if (bNewer) {
@@ -3312,7 +3312,7 @@ function findObj(coll, id) {
 }
 function showVal(cf, v) {
   if (v == null || v === '') return `<span class="muted">${_t('（空）')}</span>`;
-  if (cf.k === 'verdict') return VMAP[v] ? `<span class="pill v-${v}">${vLabel(v)}</span>` : esc(v);
+  if (cf.k === 'verdict') return VMAP[v] ? `<span class="pill v-${esc(v)}">${vLabel(v)}</span>` : esc(v);
   if (Array.isArray(v)) return esc(v.map(r => Array.isArray(r) ? r.join(' | ') : r).join('\n'));
   if (typeof v === 'boolean') return v ? '✓' : `<span class="muted">${_t('（なし）')}</span>`;
   return esc(String(v).slice(0, 2000));
@@ -3354,13 +3354,13 @@ function renderConflicts() {
     <p>${_t('ほかの人のファイルと合わせたときに、同じ箇所が別々に直されていたものです。今は新しいほうの値を表示しています。どちらの値を使うか選んでください。')}</p>
     ${list.map(cf => {
       const p = cfPlace(cf), o = findObj(cf.coll, cf.obj);
-      const go = p.item || p.sheet ? `<button class="ghost" data-cf="go" data-id="${cf.id}">${_t('その場所を開く')}</button>` : '';
+      const go = p.item || p.sheet ? `<button class="ghost" data-cf="go" data-id="${esc(cf.id)}">${_t('その場所を開く')}</button>` : '';
       if (cf.kind === 'revived') return `<div class="cf-item"><div class="cf-where">${esc(p.text)}</div>
         <p style="margin:0 0 8px">${_t('ほかの人がこの{0}を削除しましたが、削除のあとで結果・エビデンス・内容の変更があったため、削除せずに残しています。', cf.coll === 'items' ? _t('行') : cf.coll === 'runs' ? _t('実施回') : cf.coll === 'sheets' ? _t('シート') : _t('要素'))}</p>
-        <div class="row">${go}<button data-cf="drop" data-id="${cf.id}" class="danger">${_t('削除する')}</button><button data-cf="keep" data-id="${cf.id}" class="primary">${_t('残す')}</button></div></div>`;
+        <div class="row">${go}<button data-cf="drop" data-id="${esc(cf.id)}" class="danger">${_t('削除する')}</button><button data-cf="keep" data-id="${esc(cf.id)}" class="primary">${_t('残す')}</button></div></div>`;
       return `<div class="cf-item"><div class="cf-where">${esc(p.text)}</div>
         <div class="cf-vals"><div><b>${_t('今の値')}</b>${showVal(cf, o && o[cf.k])}</div><div><b>${_t('ほかの人の値（{0}）', fmt(cf.vt, true))}</b>${showVal(cf, cf.value)}</div></div>
-        <div class="row">${go}<button data-cf="take" data-id="${cf.id}">${_t('ほかの人の値にする')}</button><button data-cf="keep" data-id="${cf.id}" class="primary">${_t('今の値のまま')}</button></div></div>`;
+        <div class="row">${go}<button data-cf="take" data-id="${esc(cf.id)}">${_t('ほかの人の値にする')}</button><button data-cf="keep" data-id="${esc(cf.id)}" class="primary">${_t('今の値のまま')}</button></div></div>`;
     }).join('')}
     <div class="row" style="display:flex;justify-content:flex-end;gap:8px"><button data-cf="keepall">${_t('すべて今の値のままにする')}</button><button data-cf="close" class="primary">${_t('閉じる')}</button></div></div>`;
   back.firstElementChild.focus({ preventScroll: true });  // 開いている間は、キーが後ろの表に届かないように

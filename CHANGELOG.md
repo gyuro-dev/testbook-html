@@ -26,6 +26,7 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 - Deleted board items in an imported file skipped the checks on their values. If a merge brought such an item back, those values could reach the page as HTML. They are now checked like any other item.
 - A conflict entry written into an imported file could put unchecked values on a board item, a sheet or a run when "Use their value" was pressed, and those values could reach the page as HTML. The value now goes through the same checks as opening a file, and a value that fails is not used.
+- A crafted field name in an imported file could become part of a conflict's ID and reach the page as HTML when the conflict list was opened. Such fields no longer create conflicts, and the ID is escaped when drawn.
 - An imported table with no cells, or text with malformed formatting, could stop the board from drawing. They are now repaired on import.
 
 ## [0.2.1] - 2026-11-02

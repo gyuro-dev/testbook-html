@@ -92,6 +92,27 @@
     eq(D.runs[0].name, val, '実施回の名前');
   });
 
+  test('取り込み: 細工した項目名は競合にならず、競合の ID は描くときにエスケープする', async () => {
+    const doc = newDoc(), evil = 'k' + INJ, sid = doc.sheets[0].id;
+    // 同じ ID を2つ並べると、1つのファイルの中で合わさって競合が作られる
+    doc.items.push({ id: 'i_x', sheet: sid, order: 1, [evil]: 'a', ts: { [evil]: 5 }, updatedAt: 5 }, { id: 'i_x', sheet: sid, order: 1, [evil]: 'b', ts: { [evil]: 9 }, updatedAt: 9 });
+    const r = await readBook(new File([JSON.stringify(doc)], 'evil.json'));
+    r.meta.id = D.meta.id;
+    merge(r);
+    eq(live(D.conflicts).length, 0, '競合にしない');
+    // 競合の ID がどこから来ても、属性を壊さない
+    snap(); const it = addItem(); render();
+    const id = 'cf_' + INJ;
+    D.conflicts.push({ id, kind: 'value', coll: 'items', obj: it.id, k: K(), value: 'x', vt: 1, at: 1, ts: {}, updatedAt: 1 });
+    S.ver++; renderConflicts();
+    eq($('#cfpanel').querySelectorAll('img').length, 0, 'img が作られない');
+    eq($('#cfpanel [data-cf="keep"]').dataset.id, id, 'ID はそのまま読める');
+    resolveConflict('keep', id);
+    closePanel();
+    eq(live(D.conflicts).length, 0, '片づけられる');
+    eq(window.__tbXss, undefined, 'スクリプトは動かない');
+  });
+
   test('取り込み: 知らない入れ物を指す競合は捨てる', async () => {
     const doc = newDoc();
     doc.conflicts.push({ id: 'cf_a', kind: 'value', coll: 'constructor', obj: 'x', k: 'y', value: 1, vt: 1, at: 1, ts: {}, updatedAt: 1 }, { id: 'cf_m', kind: 'value', coll: 'meta', obj: doc.meta.id, k: 'title', value: 'x', vt: 1, at: 1, ts: {}, updatedAt: 1 });
