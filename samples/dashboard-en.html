@@ -2,6 +2,7 @@
 <html lang="ja"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="script-src 'unsafe-inline' file:; connect-src 'none'; img-src blob: data:; media-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Little Shop test dashboard</title>
 <style>
 :root{
@@ -893,7 +894,7 @@ const VERDICTS = [
   { k: 'hold', label: '保留', key: '3', en: 'Hold' },
   { k: 'na', label: '対象外', key: '4', en: 'N/A' },
 ];
-const VMAP = Object.fromEntries(VERDICTS.map(v => [v.k, v]));
+const VMAP = Object.assign(Object.create(null), Object.fromEntries(VERDICTS.map(v => [v.k, v])));  // ファイルの値で引くので、constructor などを見つけないように
 const vLabel = v => VMAP[v] ? _t(VMAP[v].label) : '';
 const COLLS = ['sheets', 'runs', 'items', 'records', 'elements', 'conflicts', 'comments'];
 const COL_TYPES = [['text', 'テキスト'], ['level', '階層（同じ値を結合して表示）'], ['select', '選択肢'], ['date', '日付'], ['number', '数値'], ['check', 'チェック'], ['id', 'ID（TC-001 のように自動で付ける）']];
@@ -946,7 +947,8 @@ function issueLinksBoth(t, L) {
 }
 function linkify(s) {
   s = esc(s);
-  const re = /https?:\/\/[^\s<"']+/g;
+  // s は esc 済みなので、引用符や < > は実体参照で終わりを見る。日本語の文の途中でも切れるように、全角の区切りでも止める
+  const re = /https?:\/\/(?:(?!&(?:quot|#39|lt|gt);)[^\s、。「」『』（）【】])+/g;
   let out = '', last = 0, m;
   while ((m = re.exec(s))) { out += issueLinks(s.slice(last, m.index)) + aTag(m[0], m[0]); last = m.index + m[0].length; }
   return last ? out + issueLinks(s.slice(last)) : issueLinks(s);
@@ -1012,12 +1014,16 @@ function safeId(s) {
   return true;
 }
 const okId = o => !!o && typeof o === 'object' && safeId(o.id);
+// シートと列の ID はオブジェクトの鍵（S.cf、S.fold、項目の値）になるので、constructor など継承した値が見える名前も断る。
+// 数が少ないのでここで見る（何十万件もある項目の ID まで見ると、文字列の内部化で開くのが遅くなる）
+const keyId = o => okId(o) && !(o.id in Object.prototype);
 // 全部が ok ならその配列をそのまま返す（大きなファイルで配列を作り直さない）
 function keep(arr, ok) { let i = 0; while (i < arr.length && ok(arr[i])) i++; return i < arr.length ? arr.filter(ok) : arr; }
 const EL_TYPES = new Set(['text', 'image', 'frame', 'table', 'file', 'metric', 'line', 'marker', 'xmetric', 'xtotal']);
 const COLOR_KEYS = new Set(['red', 'blue', 'green', 'orange', 'gray', 'black', 'white', 'yellow']);
 const TEXT_STYLES = new Set(['normal', 'title', 'log']);
 const num = (v, d = 0) => typeof v === 'number' && Number.isFinite(v) ? v : d;
+const objects = a => Array.isArray(a) && a.every(x => x && typeof x === 'object');
 const XM_NUMS = ['total', 'ok', 'ng', 'hold', 'na', 'none', 'done', 'ev'];
 function cleanEl(e) {
   if (!EL_TYPES.has(e.type) || typeof e.owner !== 'string') return false;
@@ -1029,7 +1035,7 @@ function cleanEl(e) {
   if ((e.type === 'table' || 'cells' in e) && !(Array.isArray(e.cells) && e.cells.length && e.cells.every(r => Array.isArray(r) && r.length))) e.cells = [['']];
   if (e.type === 'xmetric') e.runs = (Array.isArray(e.runs) ? e.runs : []).filter(t => t && typeof t === 'object')
     .map(t => { for (const k of XM_NUMS) t[k] = num(t[k]); return t; });
-  else if (e.runs && !(Array.isArray(e.runs) && e.runs.every(t => t && typeof t === 'object'))) delete e.runs;
+  else if (e.runs && !objects(e.runs)) delete e.runs;
   return true;
 }
 // 削除の印（tomb）は種類を持たないので cleanEl を通らない。印に要らない値は捨てて残す（あとで合わせて復活しても、確かめていない値が画面に出ないように）
@@ -1037,20 +1043,25 @@ const TOMB_KEYS = new Set(['id', 'deleted', 'ts', 'updatedAt']);
 function tombEl(e) { for (const k of Object.keys(e)) if (!TOMB_KEYS.has(k)) delete e[k]; return true; }
 function normalize(d) {
   if (!d || d.format !== 'testbook' || d.version !== 2) return null;
-  for (const k of COLLS) d[k] = Array.isArray(d[k]) ? keep(d[k], okId) : [];
-  d.meta = { id: uid('d_'), title: _t('無題の試験'), ts: {}, ...d.meta };  // Object.assign は __proto__ でプロトタイプを差し替えてしまう
+  for (const k of COLLS) d[k] = Array.isArray(d[k]) ? keep(d[k], k === 'sheets' ? keyId : okId) : [];
+  d.meta ={ id: uid('d_'), title: _t('無題の試験'), ts: {}, ...d.meta };  // Object.assign は __proto__ でプロトタイプを差し替えてしまう
   if (!okId(d.meta)) d.meta.id = uid('d_');
+  if (typeof d.meta.title !== 'string') d.meta.title = _t('無題の試験');
   if (d.meta.issueUrl && typeof d.meta.issueUrl !== 'string') delete d.meta.issueUrl;
   if (!live(d.sheets).length) d.sheets.push(newSheet(_t('試験項目'), 'cases', 1));
   if (!live(d.runs).length) d.runs.push({ id: uid('r_'), name: _t('1回目'), order: 1, ts: {}, updatedAt: now() });
   for (const s of d.sheets) {
     if (s.color && !COLOR_KEYS.has(s.color)) delete s.color;
-    s.columns = Array.isArray(s.columns) ? keep(s.columns, okId) : [];
-    for (const c of s.columns) c.w = num(c.w, 140);
+    s.columns = Array.isArray(s.columns) ? keep(s.columns, keyId) : [];
+    for (const c of s.columns) { c.w = num(c.w, 140); if (c.options && !Array.isArray(c.options)) delete c.options; }
   }
   d.elements = keep(d.elements, e => cleanEl(e) || (!!e.deleted && tombEl(e)));
   d.conflicts = keep(d.conflicts, c => (c.k == null || safeId(c.k)) && (c.coll == null || c.coll === 'meta' || COLLS.includes(c.coll)));
-  for (const r of d.records) if (r.verdict && !VMAP[r.verdict]) delete r.verdict;  // 知らない結果の値は、表でも集計でも「未実施」にする
+  for (const r of d.records) {
+    if (r.verdict && (typeof r.verdict !== 'string' || !VMAP[r.verdict])) delete r.verdict;  // 知らない結果の値は、表でも集計でも「未実施」にする
+    if (r.hist && !objects(r.hist)) delete r.hist;
+    if (r.histX && !Array.isArray(r.histX)) delete r.histX;
+  }
   return d;
 }
 /* ファイルの形:
@@ -1066,16 +1077,17 @@ const elData = e => e.data || (BLOBNODES.has(e.id) ? BLOBNODES.get(e.id).textCon
 // 削除したものは中身を捨てて印だけ残す（消した画像がファイルに残らないように）
 const tomb = o => o.deleted ? { id: o.id, deleted: true, ts: { deleted: (o.ts && o.ts.deleted) || o.updatedAt || 0 }, updatedAt: o.updatedAt } : o;
 const J = v => JSON.stringify(v).replace(/</g, '\\u003c');
+function jsonOf(k, o) {
+  let x = tomb(o);
+  if (k === 'elements' && x.data !== undefined) { x = { ...x }; delete x.data; }  // 中身は tb-blob に分ける
+  return J(x);
+}
 // 保存するデータは小分けの文字列で作る。全体を1つの巨大な文字列にしないので、大きなファイルでもメモリを食いすぎない。
 function jsonParts() {
   const parts = [`{"format":"testbook","version":2,"meta":${J(D.meta)}`];
   for (const k of COLLS) {
     parts.push(`,"${k}":[`);
-    D[k].forEach((o, i) => {
-      let x = tomb(o);
-      if (k === 'elements' && x.data !== undefined) { x = { ...x }; delete x.data; }  // 中身は tb-blob に分ける
-      parts.push((i ? ',' : '') + J(x));
-    });
+    D[k].forEach((o, i) => parts.push((i ? ',' : '') + jsonOf(k, o)));
     parts.push(']');
   }
   parts.push('}');
@@ -1090,9 +1102,7 @@ async function jsonPartsAsync() {
     parts.push(`,"${k}":[`);
     const arr = D[k];
     for (let i = 0; i < arr.length; i++) {
-      let x = tomb(arr[i]);
-      if (k === 'elements' && x.data !== undefined) { x = { ...x }; delete x.data; }
-      parts.push((i ? ',' : '') + J(x));
+      parts.push((i ? ',' : '') + jsonOf(k, arr[i]));
       if ((i & 1023) === 1023 && performance.now() - t0 > 10) {
         await new Promise(r => setTimeout(r, 0));
         if (S.editSeq !== seq) return null;
@@ -1262,7 +1272,8 @@ function mergeObj(a, b, coll, ctx) {
       changed = true;
     }
   }
-  for (const k of Object.keys(b)) if (k !== 'ts' && k !== 'bt' && !(k in out)) { out[k] = b[k]; changed = true; }
+  // まだ読んでいない画像（BLOBNODES）は中身が a にないだけなので、変更に数えない。中身をメモリに持ち込むことにもなる
+  for (const k of Object.keys(b)) if (k !== 'ts' && k !== 'bt' && !(k in out) && !(k === 'data' && BLOBNODES.has(a.id))) { out[k] = b[k]; changed = true; }
   if (a.hist || b.hist || a.histX || b.histX) {
     const clr = out.histClr || 0, xs = [...new Set([...(a.histX || []), ...(b.histX || [])])].filter(t => t > clr);
     const m = mergeHist(a.hist, b.hist, xs, clr);
@@ -1292,7 +1303,7 @@ function mergeInto(dst, src) {
   for (const k of COLLS) {
     const idx = new Map(dst[k].map((x, i) => [x.id, i]));
     for (const o of src[k] || []) {
-      for (const t of Object.values(o.ts || {})) if (t > maxT) maxT = t;
+      maxT = latestTs(o, maxT);
       const i = idx.get(o.id);
       let changed = false;
       if (i == null) { idx.set(o.id, dst[k].length); dst[k].push(o); changed = !o.deleted; }
@@ -1300,7 +1311,7 @@ function mergeInto(dst, src) {
       if (changed) { st.n++; st.by[k] = (st.by[k] || 0) + 1; }
     }
   }
-  if (src.meta && src.meta.id === dst.meta.id) { const m = mergeObj(dst.meta, src.meta, 'meta', null); if (m) { dst.meta = m; st.n++; } }
+  if (src.meta && src.meta.id === dst.meta.id) { maxT = latestTs(src.meta, maxT); const m = mergeObj(dst.meta, src.meta, 'meta', null); if (m) { dst.meta = m; st.n++; } }
   // 削除された行に、削除のあとで結果やエビデンス、コメントが付いていたら、行を残す
   const touched = new Map();
   const touch = (id, t) => { if (t > (touched.get(id) || 0)) touched.set(id, t); };
@@ -1360,7 +1371,7 @@ function mergeInto(dst, src) {
 /* ID の列: 行を作ったときに、シートの番号（idNext）から TC-001 のように振る。
  * 2人が同時に行を足すと同じ番号になることがあるので、合わせたあとに重なりを見つけて、新しいほうを振り直す */
 const idCols = sh => sheetCols(sh).filter(c => c.type === 'id');
-const fmtId = (c, n) => (c.prefix ?? 'TC-') + String(n).padStart(c.digits || 3, '0');
+const fmtId = (c, n) => (c.prefix ?? 'TC-') + String(n).padStart(clamp(c.digits || 3, 1, 8), '0');
 function nextId(sh, c) {
   const n = (sh.idNext || 0) + 1;
   if (CUR && !APPLYING) setF(sh, 'idNext', n); else { sh.idNext = n; (sh.ts || (sh.ts = {})).idNext = tick(); }
@@ -1497,7 +1508,8 @@ const recOf = (itemId, runId) => IX.rec.get(itemId + '|' + runId) || null;
 const verdictOf = (itemId, runId) => (recOf(itemId, runId) || {}).verdict || null;
 
 // 変更の印。editSeq は「何回目の変更か」で、自動保存が途中で編集が入ったことに気づくのに使う
-function markDirty() { S.dirty = true; S.editSeq++; S.lastEdit = performance.now(); renderStatus(); }
+// 表示は保存済みから変わるときだけ直す（置換や貼り付けで何万回も呼ばれるので）
+function markDirty() { const was = S.dirty; S.dirty = true; S.editSeq++; S.lastEdit = performance.now(); if (!was) renderStatus(); }
 
 /* 結果の記録は「項目 × 実施回」で1つ。ID を決まった形にして、別々の人が作っても同じ物として合わさるようにする */
 function ensureRec(it, runId = S.run) {
@@ -1538,7 +1550,12 @@ function applyVerdict(it, v) {
   }
 }
 // 画像やファイルは、表示するときに初めて読んでバイナリにし、URL を作る（表には一切描かない）
-const BLOBS = new Map();
+const BLOBS = new Map(), BLOBS_MAX = 400;
+// 報告書は全部の画像を同時に見せるので、印刷が終わるまで古い URL を捨てない
+function trimBlobs() {
+  if (S.printing) return;
+  while (BLOBS.size > BLOBS_MAX) { const [k, v] = BLOBS.entries().next().value; URL.revokeObjectURL(v[1]); BLOBS.delete(k); }
+}
 function blobUrl(e) {
   const hit = BLOBS.get(e.id);
   if (hit && (!e.data || hit[0] === e.data)) return hit[1];
@@ -1552,7 +1569,7 @@ function blobUrl(e) {
   const url = URL.createObjectURL(new Blob([arr], { type: m[1] }));
   if (hit) URL.revokeObjectURL(hit[1]);
   BLOBS.delete(e.id); BLOBS.set(e.id, [e.data, url]);
-  if (BLOBS.size > 400) { const [k, v] = BLOBS.entries().next().value; URL.revokeObjectURL(v[1]); BLOBS.delete(k); }
+  trimBlobs();
   return url;
 }
 function setRecField(it, field, v) {
@@ -1673,6 +1690,9 @@ const FOOT_BOARD = () => _t('<kbd>Ctrl+V</kbd> 貼り付け ・ ダブルクリ�
 function render() {
   hidePop();
   if (!live(D.runs).some(r => r.id === S.run)) S.run = runs()[0].id;  // ほかの人が消した実施回を見ていたとき
+  // ほかの人が消したシートや行を見ていたとき。そのまま残ると、足した行やエビデンスがどこからも見えなくなる
+  if (!live(D.sheets).some(s => s.id === S.sheet)) { S.sheet = sheets()[0].id; S.r = 0; S.curId = null; S.bSel = null; if (S.view === 'board') S.view = 'sheet'; }
+  if (S.view === 'board') { const it = getItem(S.boardItem); if (!it || it.deleted) { S.view = 'sheet'; S.bSel = null; } }
   renderHeader(); renderTabs(); renderToolbar();
   const sh = curSheet();
   const mode = S.view === 'summary' ? 'summary' : (S.view === 'board' || sh.kind === 'free') ? 'board' : 'grid';
@@ -1798,7 +1818,8 @@ const FMT_COLS = c => c && (TEXTUAL.has(c.type) || c.type === 'select');
 const cellHost = (it, c, create) => REC_FIELDS.has(c.type) ? (create ? ensureRec(it) : recOf(it.id, S.run)) : it;
 const cellKey = c => REC_FIELDS.has(c.type) ? c.type : c.id;
 const cellFmt = (it, c) => { const h = cellHost(it, c); return h ? h[cellKey(c) + ':f'] : null; };
-const cellRuns = (it, c) => { const h = cellHost(it, c); return h ? h[cellKey(c) + ':r'] : null; };
+// 描くときに形を確かめる（全部の行を読み込むときに見ると、何十万行で重くなる）。形が合わなければ書式なしとして扱う
+const cellRuns = (it, c) => { const h = cellHost(it, c), r = h ? h[cellKey(c) + ':r'] : null; return objects(r) && r.every(x => typeof x.t === 'string') ? r : null; };
 function setCell(it, c, v) {
   if (REC_FIELDS.has(c.type)) setRecField(it, c.type, v);
   else { setF(it, c.id, v); if (c.type === 'level') S.ver++; }  // 階層が変わるとグループ（折りたたみ・目次）が変わる
@@ -1880,9 +1901,6 @@ function caretToEnd(el) {
 }
 const richEditing = () => { const a = document.activeElement; return !!(a && a.isContentEditable); };
 function richCmd(cmd, val) { document.execCommand('styleWithCSS', false, false); document.execCommand(cmd, false, val); }
-// order を渡すと並びの計算をしない（Excel から何千行も貼るとき、1行ごとに一覧を作り直さないように）
-// 行の並びは order（数）で持ち、間に入れるときは前後の平均にする。同じ所に何十回も入れると浮動小数の精度が尽きて
-// 前後と同じ値になるので、そのときは一度 1, 2, 3… と振り直してから入れる
 function renumberOrders(sid) {
   itemsOf(sid).forEach((it, i) => setF(it, 'order', i + 1));
 }
@@ -1901,6 +1919,9 @@ function deleteSheet(s) {
   deleteItems(list);
   for (const e of els) setF(e, 'deleted', true);
 }
+// order を渡すと並びの計算をしない（Excel から何千行も貼るとき、1行ごとに一覧を作り直さないように）
+// 行の並びは order（数）で持ち、間に入れるときは前後の平均にする。同じ所に何十回も入れると浮動小数の精度が尽きて
+// 前後と同じ値になるので、そのときは一度 1, 2, 3… と振り直してから入れる
 function addItem(after, inherit, order) {
   if (order == null) {
     let list = itemsOf(S.sheet);
@@ -1948,6 +1969,12 @@ function setFold(sh, key, on) {
   S.foldVer++;
 }
 // グループ（大項目の値）ごとの行数。並びが変わったときだけ作り直す
+// 行をグループ（大項目の値）ごとに分ける。グループごとに全行を探し直さないように、1回で分ける
+function byGroup(items, lv) {
+  const m = new Map();
+  for (const it of items) { const k = it[lv.id] || '', l = m.get(k); if (l) l.push(it); else m.set(k, [it]); }
+  return m;
+}
 const groupsOf = sh => cached('groups:' + sh.id, () => {
   const lv = foldCol(sh), m = new Map();
   if (lv) for (const it of itemsOf(sh.id)) { const k = it[lv.id] || ''; m.set(k, (m.get(k) || 0) + 1); }
@@ -1961,6 +1988,13 @@ function revealItem(it) {
   S.q = ''; S.vf = '';
   for (const [c, set] of activeCf(sh)) if (!set.has(cellText(it, c))) { delete S.cf[c.id]; S.cfVer++; }
   if (lv && foldSet(sh).has(it[lv.id] || '') && !visibleRows().includes(it)) setFold(sh, it[lv.id] || '', false);
+}
+// 足した行を今のセルにする。絞り込みなどで隠れないようにする
+function focusNewRow(it) {
+  const narrowed = S.q || S.vf || activeCf(curSheet()).length;
+  revealItem(it);
+  if (narrowed) renderToolbar();
+  S.curId = it.id; S.c = Math.max(S.c, 1);
 }
 function visibleRows() {
   const sh = curSheet(), all = itemsOf(S.sheet), q = S.q.trim().toLowerCase();
@@ -2499,21 +2533,23 @@ function pasteValue(it, c, v) {
   } else if (c.type === 'check') setF(it, c.id, /^(✓|○|〇|1|true|済|x)$/i.test(v.trim()));
   else if (c.type === 'select' || textual(c)) { if (getCell(it, c) !== v) setCell(it, c, v); }
 }
+// 一番長い行の長さ（Math.max に行を全部渡すと、十数万行で引数の上限を超える）
+const maxLen = rows => rows.reduce((m, r) => Math.max(m, r.length), 0);
 async function pasteGrid(text) {
   const data = parseTSV(text), C = cols();
   if (!data.length) return;
   // 結果の列に貼るなら、実施者として名前が要る
-  const R0 = rng(), single = data.length === 1 && data[0].length === 1;
-  const touches = single ? C.slice(R0.c0, R0.c1 + 1) : C.slice(Math.max(1, R0.c0), Math.max(1, R0.c0) + Math.max(...data.map(d => d.length)));
+  const R0 = rng(), single = data.length === 1 && data[0].length === 1, width = maxLen(data);
+  const touches = single ? C.slice(R0.c0, R0.c1 + 1) : C.slice(Math.max(1, R0.c0), Math.max(1, R0.c0) + width);
   if (touches.some(c => c && c.type === 'verdict') && !(await ensureMe())) return;
   snap();
   // 値が1つなら、選んでいる範囲の全部に入れる
-  if (data.length === 1 && data[0].length === 1) {
+  if (single) {
     forRange((it, c) => pasteValue(it, c, data[0][0]));
     renderGrid(); renderPane(); renderProgress();
     return;
   }
-  const R = rng(), c0 = Math.max(1, R.c0), rows = S.rows, width = Math.max(...data.map(d => d.length));
+  const R = rng(), c0 = Math.max(1, R.c0), rows = S.rows;
   let added = 0, last = itemsOf(S.sheet).slice(-1)[0] || null, end = null;
   data.forEach((cells, i) => {
     let it = rows[R.r0 + i];
@@ -2551,7 +2587,6 @@ function showPop(anchor, html) {
 }
 const hidePop = () => { const p = $('#pop'); if (p) p.hidden = true; };
 
-/* 列の幅をドラッグで変える */
 /* ---------- 行と列をドラッグで動かす ----------
  * 列: 見出しを押して横に動かすと、その列を動かす（動かさずに離せば、今までどおり列のメニュー）。
  * 行: No の列で選んだ行（1行でも何行でも）を、もう一度 No の列で押して縦に動かす。選んでいない行を押してドラッグすると、今までどおり範囲選択。
@@ -2659,6 +2694,7 @@ function moveRowsTo(r0, r1, to) {
   paintCursor(false);
   return true;
 }
+// 列の幅をドラッグで変える
 function startColResize(e, handle) {
   e.preventDefault(); e.stopPropagation();
   const c = colById(handle.dataset.cid), j = cols().indexOf(c);
@@ -2758,7 +2794,7 @@ function histHtml(rec) {
   const lab = v => VMAP[v] ? `<span class="pill v-${v}">${vLabel(v)}</span>` : v ? esc(v) : `<span class="muted">${_t('未実施')}</span>`;
   return `<div class="sec"><div class="sec-h">${_t('結果の履歴')} <span class="count">${h.length}</span><span class="spacer"></span><button class="ghost mini" data-act="histClear" data-id="${rec.id}" title="${_t('この試験項目の履歴をすべて消す（Ctrl+Z で元に戻せます）')}">${_t('履歴を消す')}</button></div><div class="hist">${h.slice().reverse().map((x, i) => {
     const prev = h[h.length - 1 - i - 1];
-    return `<div><span class="muted">${fmt(x.t, true)}</span> ${esc(x.by || '')} <span class="muted">${prev ? lab(prev.v) + ' →' : ''}</span> ${lab(x.v)}<button class="ghost mini hx" data-act="histDel" data-id="${rec.id}" data-t="${num(x.t)}"title="${_t('この1件を消す')}">×</button></div>`;
+    return `<div><span class="muted">${fmt(x.t, true)}</span> ${esc(x.by || '')} <span class="muted">${prev ? lab(prev.v) + ' →' : ''}</span> ${lab(x.v)}<button class="ghost mini hx" data-act="histDel" data-id="${rec.id}" data-t="${num(x.t)}" title="${_t('この1件を消す')}">×</button></div>`;
   }).join('')}</div></div>`;
 }
 // 履歴を消す。消した時刻を覚えておき、ほかの人のファイルと合わせても戻ってこないようにする
@@ -2927,12 +2963,12 @@ function tableHtml(e, editing) {
 }
 function metricHtml(e) {
   const run = e.run && live(D.runs).some(r => r.id === e.run) ? e.run : S.run;
-  const SH = caseSheets(), t = tally(SH.flatMap(s => itemsOf(s.id)), run);
+  const SH = caseSheets(), t = allTally(run);  // ボードを描き直すたびに全行を数えない
   return `<div class="metric"><div class="mh">${_t('消化状況（{0}）', esc(runName(run)))}</div>
     <div class="mcards"><div><b>${pct(t)}</b><span>${_t('消化率')}</span></div><div><b>${t.total}</b><span>${_t('項目数')}</span></div>
     <div><b style="color:var(--ok)">${t.ok}</b><span>OK</span></div><div><b style="color:var(--ng)">${t.ng}</b><span>NG</span></div>
     <div><b style="color:var(--hold)">${t.hold}</b><span>${_t('保留')}</span></div><div><b>${t.none}</b><span>${_t('未実施')}</span></div></div>
-    <table>${SH.map(s => { const x = tally(itemsOf(s.id), run); return `<tr><td>${esc(dn(s.name))}</td><td>${barHtml(x, 180)}</td><td>${x.done}/${x.total}　${pct(x)}</td></tr>`; }).join('')}</table></div>`;
+    <table>${SH.map(s => { const x = sheetTally(s.id, run); return `<tr><td>${esc(dn(s.name))}</td><td>${barHtml(x, 180)}</td><td>${x.done}/${x.total}　${pct(x)}</td></tr>`; }).join('')}</table></div>`;
 }
 function renderSelTb() {
   const b = $('#board');
@@ -2982,7 +3018,7 @@ function positionSelTb() {
 }
 function addEl(owner, type, props) {
   const e = { id: uid('e_'), owner, type, z: maxZ(owner) + 1, by: S.me, at: now(), ts: {}, updatedAt: now(), ...props };
-  D.elements.push(e); created(e, "elements");
+  D.elements.push(e); created(e, 'elements');
   return e;
 }
 // 置く場所: 貼り付けはマウスのある場所（動かしていれば）、それ以外は一番下の要素の下
@@ -3032,13 +3068,13 @@ function commitBoardEdit() {
   S.bCell = null;
   renderBoard();
 }
-// mode: move（動かす） / resize（右下の角で大きさ） / p1・p2（線の始点・終点）
 // 画像の上に置いた印（枠・丸数字・線・文字）。画像を動かすときに一緒に動かす
 function riders(img) {
   if (img.type !== 'image') return [];
   const b = elBox(img);
   return elementsOf(img.owner).filter(e => e !== img && e.type !== 'image' && (e.z || 0) > (img.z || 0) && (() => { const x = elBox(e), cx = x.x + x.w / 2, cy = x.y + x.h / 2; return cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h; })());
 }
+// mode: move（動かす） / resize（右下の角で大きさ） / p1・p2（線の始点・終点）
 function startDrag(ev, e, mode) {
   ev.preventDefault();
   const sx = ev.clientX, sy = ev.clientY, o = { x: e.x, y: e.y, w: e.w, h: e.h };
@@ -3084,7 +3120,7 @@ function startDrag(ev, e, mode) {
   const mu = () => {
     removeEventListener('mousemove', mm); removeEventListener('mouseup', mu);
     if (!moved) return;
-    for (const k of ["x", "y", "w", "h"]) if (e[k] !== o[k]) { const v = e[k]; e[k] = o[k]; setF(e, k, v); }
+    for (const k of ['x', 'y', 'w', 'h']) if (e[k] !== o[k]) { const v = e[k]; e[k] = o[k]; setF(e, k, v); }
     for (const g of group) for (const k of ['x', 'y']) if (g.e[k] !== g[k]) { const v = g.e[k]; g.e[k] = g[k]; setF(g.e, k, v); }
     S.hcache.set(e.id, dom.offsetHeight);
     sizeBoard(); positionSelTb();
@@ -3100,7 +3136,7 @@ function onBoardMouseDown(ev) {
   if (S.bEdit) commitBoardEdit();
   $('#boardwrap').focus({ preventScroll: true });
   if (!id || !getEl(id) || getEl(id).deleted) { if (S.bSel) selectEl(null); ev.preventDefault(); return; }
-  if (S.bSel !== id) { selectEl(id); if (getEl(id).type === 'line') renderBoard(); }  // 線は選ぶと両端につかみが出る
+  if (S.bSel !== id) selectEl(id);
   const cl = ev.target.classList;
   startDrag(ev, getEl(id), cl.contains('rh') ? 'resize' : cl.contains('lh') ? 'p' + ev.target.dataset.end : 'move');
 }
@@ -3203,8 +3239,9 @@ async function addFilesToBoard(owner, files, at) {
   let n = 0, p = at || nextPos(owner);
   for (const f of files) {
     let e;
-    if (f.type.startsWith('image/')) {
-      const img = await compressImage(f);
+    // ブラウザが読めない画像（TIFF、HEIC など）は、ファイルとして置く
+    const img = f.type.startsWith('image/') ? await compressImage(f).catch(() => null) : null;
+    if (img && img.w && img.h) {
       const w = Math.min(img.w, 720);
       const name = !f.name || /^image\.(png|jpe?g)$/i.test(f.name) ? _t('スクリーンショット') + ' ' + fmt(now()) : f.name;
       e = addEl(owner, 'image', { x: p.x, y: p.y, w, h: Math.round(img.h * w / img.w), data: img.data, name, nw: img.w, nh: img.h });
@@ -3231,7 +3268,7 @@ async function pasteToBoard(cd) {
   const p = nextPos(owner, true);
   let e;
   if (t.includes('\t')) {
-    const rows = parseTSV(t), n = Math.max(...rows.map(r => r.length));
+    const rows = parseTSV(t), n = maxLen(rows);
     e = addEl(owner, 'table', { x: p.x, y: p.y, w: Math.min(960, n * 140), cells: rows.map(r => [...r, ...Array(n - r.length).fill('')]) });
   } else {
     const looksLog = t.split('\n').length >= 3 && /\d{1,2}:\d{2}:\d{2}|ERROR|WARN|INFO|DEBUG|Exception/.test(t);
@@ -3261,12 +3298,12 @@ async function addXMetrics(owner, files, at) {
   if (!(await ensureMe())) return { n: 0, left };
   let n = 0, p = at || nextPos(owner);
   for (const f of files) {
-    const d = await readBook(f);
+    const d = await tryRead(f);
     if (!d) { notBook(f.name); left.push(f); continue; }
     const x = tallyDoc(d);
     if (!n) snap();
     const old = elementsOf(owner).find(e => e.type === 'xmetric' && e.docId === x.docId);
-    if (old) { setF(old, 'title', x.title); setF(old, 'runs', x.runs); setF(old, 'srcAt', x.at); setF(old, 'sheets', x.sheets); setF(old, 'at', now()); }
+    if (old) { setF(old, 'title', x.title); setF(old, 'runs', x.runs); setF(old, 'srcAt', x.at); setF(old, 'sheets', x.sheets); setF(old, 'file', f.name); setF(old, 'at', now()); }
     else { const e = addEl(owner, 'xmetric', { x: p.x, y: p.y, w: 420, docId: x.docId, title: x.title, runs: x.runs, sheets: x.sheets, srcAt: x.at, file: f.name }); p = { x: p.x, y: p.y + elH(e) + 16 }; }
     n++;
   }
@@ -3342,6 +3379,7 @@ function cfPlace(cf) {
   if (cf.coll === 'runs' && o) return { text: _t('実施回「{0}」', o.name) };
   if (cf.coll === 'sheets' && cf.kind === 'revived' && o) return { text: _t('シート「{0}」', dn(o.name)), board: true, sheet: o.id };
   if (cf.coll === 'comments' && o) { const it = getItem(o.item); return { text: _t('{0} のコメント', itemPlace(it)), item: it }; }
+  if (cf.coll === 'elements' && o && !o.owner) return { text: _t('{0}の{1}', _t('要素'), fname(cf.k)) };  // 削除して保存すると、印だけで置き場所は残らない
   if (cf.coll === 'elements' && o) {
     const [kind, a, b] = o.owner.split(':');
     const where = kind === 'ev' ? _t('{0} のエビデンス票', itemPlace(getItem(a))) : _t('自由シート「{0}」', (D.sheets.find(s => s.id === a) || {}).name || '?');
@@ -3410,7 +3448,10 @@ function resolveConflict(action, id) {
       deleteSheet(o);
       if (S.sheet === o.id) { S.sheet = sheets()[0].id; S.view = 'sheet'; }
     } else if (cf.coll === 'items') deleteItems([o]);
-    else setF(o, 'deleted', true);
+    else if (cf.coll === 'runs') {
+      if (!runs().some(r => r !== o)) { toast(_t('最後の実施回は削除できません'), 'err'); return; }
+      deleteRun(o);
+    } else setF(o, 'deleted', true);
   }
   setF(cf, 'deleted', true);
   render(); renderConflicts();
@@ -3429,8 +3470,8 @@ function renderSummary() {
     const items = itemsOf(s.id), lv = sheetCols(s).find(c => c.type === "level");
     byPart += row(dn(s.name), tally(items, S.run));
     if (!lv) continue;
-    const groups = [...new Set(items.map(i => i[lv.id] || ''))];
-    if (groups.length > 1 || groups[0]) for (const g of groups) byPart += row(g || _t('（なし）'), tally(items.filter(i => (i[lv.id] || '') === g), S.run), true);
+    const groups = byGroup(items, lv);
+    if (groups.size > 1 || (groups.size && !groups.has(''))) for (const [g, list] of groups) byPart += row(g || _t('（なし）'), tally(list, S.run), true);
   }
   const people = new Map();
   for (const it of allItems) {
@@ -3493,7 +3534,7 @@ function trendData(items, run) {
   for (const it of items) {
     const r = recOf(it.id, run);
     if (!r || !r.verdict || r.verdict === 'hold') continue;
-    const day = r.ts && r.ts.verdict ? dayOf(r.ts.verdict) : (r.at || '').slice(0, 10);
+    const day = r.ts && r.ts.verdict ? dayOf(r.ts.verdict) : String(r.at || '').slice(0, 10);
     if (!/^\d{4}\/\d{2}\/\d{2}$/.test(day)) continue;
     const d = m.get(day) || { day, n: 0, ng: 0 };
     d.n++; if (r.verdict === 'ng') d.ng++;
@@ -3539,8 +3580,8 @@ function reportHtml({ scope, withEv }) {
     if (s.kind === 'free') { const els = elementsOf(sheetOwner(s.id)); h += els.length ? staticBoard(els, 720) : `<p class="muted">${_t('（空）')}</p>`; continue; }
     const C = sheetCols(s), items = itemsOf(s.id), lv = C.find(c => c.type === 'level');
     if (lv) {
-      const groups = [...new Set(items.map(i => i[lv.id] || ''))];
-      if (groups.length > 1) h += `<table class="st rsum">${head}${groups.map(g => row(g || _t('（なし）'), tally(items.filter(i => (i[lv.id] || '') === g), S.run), true)).join('')}</table>`;
+      const groups = byGroup(items, lv);
+      if (groups.size > 1) h += `<table class="st rsum">${head}${[...groups].map(([g, list]) => row(g || _t('（なし）'), tally(list, S.run), true)).join('')}</table>`;
     }
     h += `<table class="rt"><thead><tr><th>No</th>${C.map(c => `<th>${esc(dn(c.name))}</th>`).join('')}</tr></thead><tbody>`;
     const evs = [];
@@ -3580,11 +3621,15 @@ async function printReport() {
   if (n > REPORT_WARN_ROWS && !(await dialog({ title: _t('行数の多い報告書'), message: _t('{0} 行を1つの報告書にまとめます。作成と印刷に時間がかかります。続けますか？', n), ok: _t('続ける') }))) return;
   let box = $('#report');
   if (!box) { box = document.createElement('section'); box.id = 'report'; document.body.appendChild(box); }
+  S.printing = true;
   box.innerHTML = reportHtml(opts);
   document.body.classList.add('printing');
-  const done = () => { document.body.classList.remove('printing'); box.remove(); removeEventListener('afterprint', done); };
+  const done = () => { document.body.classList.remove('printing'); box.remove(); removeEventListener('afterprint', done); S.printing = false; trimBlobs(); };
   addEventListener('afterprint', done);
-  await new Promise(r => setTimeout(r, 50));  // 画像の URL などを描かせてから
+  // 読み込む前に印刷すると、その画像は空白になる。壊れた画像は待たない
+  const imgs = [...box.querySelectorAll('img')];
+  for (const i of imgs) i.loading = 'eager';
+  await Promise.all(imgs.map(i => i.decode().catch(() => {})));
   window.print();
 }
 
@@ -3611,9 +3656,19 @@ async function writable(handle) {
   const o = { mode: 'readwrite' };
   return (await handle.queryPermission(o)) === 'granted' || (await handle.requestPermission(o)) === 'granted';
 }
+// 書けなかったら途中の一時ファイルを残さない（共有フォルダに .crswap が溜まらないように）
+async function writeTo(handle, blob) {
+  const w = await handle.createWritable();
+  try { await w.write(blob); await w.close(); }
+  catch (e) { try { await w.abort(); } catch { /* 片付けられなくても、元の理由を伝える */ } throw e; }
+}
 async function save(saveAs) {
   commitEdit(); commitBoardEdit(); hidePop();
   while (S.saving) await new Promise(r => setTimeout(r, 50));  // 自動保存の途中なら、終わるのを待つ
+  S.saving = true;  // 保存の間は、自動保存や共有フォルダの見張りを動かさない
+  try { await saveNow(saveAs); } finally { S.saving = false; }
+}
+async function saveNow(saveAs) {
   if (!window.showSaveFilePicker) {
     const blob = fileBlob();
     if (!(await checkSize(blob))) return;
@@ -3637,13 +3692,14 @@ async function save(saveAs) {
     const f0 = await h.getFile();
     const st = f0.size && f0.lastModified !== S.lastMod ? await pullFrom(f0) : null;
     const n = st && (st.n || st.conflicts);
-    const blob = fileBlob();
+    const seq = S.editSeq, blob = fileBlob();
     if (!(await checkSize(blob))) return;
-    const w = await h.createWritable();
-    await w.write(blob); await w.close();
+    await writeTo(h, blob);
     S.handle = h; S.perm = true; S.lastMod = (await h.getFile()).lastModified;
-    S.dirty = false; S.savedAt = now();
-    rememberHandle(); dropDraft();
+    S.savedAt = now();
+    // 書いている間に入力があれば、それはファイルに入っていないので、保存していない変更のままにする
+    if (S.editSeq === seq) { S.dirty = false; dropDraft(); }
+    rememberHandle();
     if (n) render(); else renderStatus();
     toast(n ? _t('保存しました。保存先にあったほかの人の変更も取り込みました: {0}', mergeMsg(st)) : _t('保存しました'));
   } catch (e) {
@@ -3683,8 +3739,7 @@ async function autoSave() {
     if (!parts) return;  // 作っている途中で編集が入った。次の機会に
     const blob = fileBlob(parts);
     if (blob.jsonLen > MAX_JSON) return;  // 大きすぎるときは手動の保存で知らせる
-    const w = await h.createWritable();
-    await w.write(blob); await w.close();
+    await writeTo(h, blob);
     S.lastMod = (await h.getFile()).lastModified;
     if (S.editSeq === seq) { S.dirty = false; S.savedAt = S.autoSavedAt = now(); dropDraft(); }
     renderStatus();
@@ -3697,7 +3752,7 @@ async function saveDraft() {
     const seq = S.editSeq, parts = await jsonPartsAsync();
     if (!parts) return;
     // 下書きは保存するファイルと同じ形（画像は tb-blob の塊）で置く。JSON だけだと貼った画像の中身が入らない
-    await idb('drafts', 'readwrite', st => st.put({ id: D.meta.id, title: D.meta.title, at: now(), json: fileBlob(parts) }, D.meta.id));
+    await idb('drafts', 'readwrite', st => st.put({ id: D.meta.id, title: D.meta.title, at: now(), clock: CLOCK, json: fileBlob(parts) }, D.meta.id));
     S.draftSeq = seq;
   } catch { /* IndexedDB が使えない環境（プライベートモードなど）では下書きを置かない */ }
   finally { S.saving = false; }
@@ -3724,7 +3779,9 @@ async function checkDraft(fileOpened) {
   if (!keep.length) return;
   const mine = keep.find(d => d.id === D.meta.id);
   if (mine) {
-    if (mine.at <= S.docMax) return;  // ファイルのほうが新しい（保存したあとの下書き消し忘れ）
+    // ファイルのほうが新しい（保存したあとの下書き消し忘れ）。ファイルの時刻と同じ時計（CLOCK）で比べる。
+    // PC の時計で比べると、時計の進んだ PC が保存したファイルでは、新しい下書きまで古い扱いになる
+    if ((mine.clock || mine.at) <= S.docMax) return;
     const d = await readDraft(mine);
     if (!d) return;
     const a = await dialog({ title: _t('保存していない変更があります'), message: _t('この試験には、{0} 時点の保存していない変更（下書き）が残っています。下書きの内容を反映しますか？', fmt(mine.at, true)), ok: _t('反映する'), cancel: _t('破棄する'), cancelAnswer: 'discard' });
@@ -3769,28 +3826,33 @@ async function deleteDraft(d) {
   toast(_t('下書きを削除しました: {0}', name));
   return true;
 }
+// 読めないときは例外のまま返す。合わせられないまま保存すると、ほかの人の変更を消してしまうので、呼ぶ側で保存を止める
 async function pullFrom(f) {
-  try {
-    if (!f.size) return null;
-    const other = await readBook(f);
-    return other && other.meta.id === D.meta.id ? mergeInto(D, other) : null;
-  } catch { return null; }
+  if (!f.size) return null;
+  const other = await readBook(f);
+  return other && other.meta.id === D.meta.id ? mergeInto(D, other) : null;
 }
 // 共有フォルダで開いているとき、ほかの人が保存したらそれを合わせて表示する
 async function watchFile() {
   const h = S.handle;
-  if (!h || S.editing || S.bEdit || document.hidden) return;
+  if (!h || S.saving || S.editing || S.bEdit || document.hidden) return;
+  S.saving = true;  // 読んでいる間に保存が走ると、取り込む前の内容で上書きしてしまう
   try {
     if ((await h.queryPermission({ mode: 'readwrite' })) !== 'granted') return;
     const f = await h.getFile();
     if (f.lastModified <= S.lastMod) return;
-    S.lastMod = f.lastModified;
     const st = await pullFrom(f);
+    if (S.handle !== h) return;  // 読んでいる間に別のファイルを開いた
+    S.lastMod = f.lastModified;  // 読めたときだけ進める。先に進めると、読めなかった変更を次の保存が上書きする
     if (st && (st.n || st.conflicts)) { render(); toast(_t('ほかの人が保存した変更を取り込みました: {0}', mergeMsg(st))); }
   } catch { /* ネットワークが切れているときなどは次の機会に */ }
+  finally { S.saving = false; }
 }
+// 物の中で一番新しい時刻。ファイルの値なので、数でないものや、時計を壊すほど大きなものは数えない
+const MAX_TS = 864e13;  // Date で表せる上限。これ以下なら、+1 しても必ず大きくなる
+function latestTs(o, m) { for (const t of Object.values(o.ts || {})) if (typeof t === 'number' && t > m && t <= MAX_TS) m = t; return m; }
 // ファイルの中で一番新しい時刻（下書きとの新旧の比べ方にも使う）
-function docMaxTs(d) { let m = 0; for (const k of COLLS) for (const o of d[k]) for (const t of Object.values(o.ts || {})) if (t > m) m = t; return m; }
+function docMaxTs(d) { let m = latestTs(d.meta, 0); for (const k of COLLS) for (const o of d[k]) m = latestTs(o, m); return m; }
 function loadDoc(d, handle) {
   D = d;
   S.handle = handle || null; S.perm = undefined; S.dirty = false; S.savedAt = null; S.lastMod = 0; S.autoSavedAt = null; S.draftSeq = S.editSeq; S.heldDraft = 0; S.qPrev = null;
@@ -3806,6 +3868,7 @@ function loadDoc(d, handle) {
   if (handle) checkPerm();
 }
 const notBook = name => toast(_t('{0} は testbook のファイルではありません', name), 'err');
+const tryRead = f => readBook(f).catch(() => null);  // 選んだあとで消されたファイルなど。読めなければ testbook ではない扱いにする
 async function openFile() {
   if (S.dirty && !(await dialog({ title: _t('別のファイルを開く'), message: _t('保存していない変更は失われます。開きますか？'), ok: _t('開く'), danger: true }))) return;
   if (!window.showOpenFilePicker) { $('#filein').dataset.mode = 'open'; $('#filein').click(); return; }
@@ -3838,7 +3901,7 @@ function alignRuns(dst, src) {
 async function importFiles(files) {
   let total = 0;
   for (const f of files) {
-    const d = await readBook(f);
+    const d = await tryRead(f);
     if (!d) { notBook(f.name); continue; }
     if (d.meta.id !== D.meta.id) {
       if (!(await dialog({ title: _t('別の試験ファイルです'), message: _t('「{0}」は、この試験とは別の試験ファイルです。シートごと取り込みますか？', dn(d.meta.title)), ok: _t('取り込む') }))) continue;
@@ -3873,8 +3936,13 @@ function idb(store, mode, fn) {
     r.onupgradeneeded = () => { for (const s of ['handles', 'drafts']) if (!r.result.objectStoreNames.contains(s)) r.result.createObjectStore(s); };
     r.onerror = () => rej(r.error);
     r.onsuccess = () => {
-      const db = r.result, tx = db.transaction(store, mode), q = fn(tx.objectStore(store));
-      tx.oncomplete = () => { db.close(); res(q && q.result); }; tx.onerror = () => { db.close(); rej(tx.error); };
+      const db = r.result;
+      try {
+        const tx = db.transaction(store, mode), q = fn(tx.objectStore(store));
+        tx.oncomplete = () => { db.close(); res(q && q.result); };
+        // 容量の超過は abort だけが来ることがある。返さないと、下書きの終わりを待つ保存が止まったままになる
+        tx.onerror = tx.onabort = () => { db.close(); rej(tx.error); };
+      } catch (e) { db.close(); rej(e); }
     };
   });
 }
@@ -3923,6 +3991,17 @@ function freezeOf(sh) {
   return n;
 }
 const MERGEABLE = c => !REC_FIELDS.has(c.type) && c.type !== 'evidence' && c.type !== 'no' && c.merge !== false;
+// 実施回に属する結果とエビデンス
+function runContents(r) {
+  return { recs: D.records.filter(x => !x.deleted && x.run === r.id), evs: D.elements.filter(e => !e.deleted && e.owner && e.owner.startsWith('ev:') && e.owner.endsWith(':' + r.id)) };
+}
+// 実施回を消す: その回の結果とエビデンス票も一緒に消す（元に戻せる）
+function deleteRun(r) {
+  const { recs, evs } = runContents(r);
+  setF(r, 'deleted', true);
+  for (const x of recs) setF(x, 'deleted', true);
+  for (const e of evs) setF(e, 'deleted', true);
+}
 const actions = {
   save: () => save(false),
   open: openFile,
@@ -4018,19 +4097,15 @@ const actions = {
     }
     render();
   },
-  // 実施回を消す: その回の結果とエビデンス票も一緒に消す（元に戻せる）。最後の1つは消せない。
-  // ほかの人がそのあとで、この回に結果やエビデンスを付けていたら、合わせたときに実施回ごと戻して知らせる（mergeInto）
+  // 最後の1つは消せない。ほかの人がそのあとで、この回に結果やエビデンスを付けていたら、合わせたときに実施回ごと戻して知らせる（mergeInto）
   async delRun() {
     hidePop();
     if (runs().length < 2) { toast(_t('最後の実施回は削除できません'), 'err'); return; }
-    const r = D.runs.find(x => x.id === S.run);
-    const recs = D.records.filter(x => !x.deleted && x.run === r.id), evs = D.elements.filter(e => !e.deleted && e.owner && e.owner.startsWith('ev:') && e.owner.endsWith(':' + r.id));
+    const r = D.runs.find(x => x.id === S.run), { recs, evs } = runContents(r);
     const done = recs.filter(x => x.verdict).length, boards = new Set(evs.map(e => e.owner)).size;
     if (!(await dialog({ title: _t('実施回を削除'), message: _t('「{0}」と、この実施回の結果 {1} 件・エビデンス票 {2} 枚を削除しますか？ほかの実施回には影響しません。', dn(r.name), done, boards), ok: _t('削除'), danger: true }))) return;
     snap();
-    setF(r, 'deleted', true);
-    for (const x of recs) setF(x, 'deleted', true);
-    for (const e of evs) setF(e, 'deleted', true);
+    deleteRun(r);
     S.run = runs().slice(-1)[0].id; S.bSel = null;
     if (S.view === 'board') S.view = 'sheet';  // 消した回のエビデンス票を開いていたら表に戻る
     render();
@@ -4098,8 +4173,8 @@ const actions = {
     const sh = curSheet(), lv = foldCol(sh), fold = foldSet(sh), g = groupsOf(sh);
     if (!lv) return;
     buildIndex();
-    const list = [...g].map(([k, n]) => {
-      const t = tally(itemsOf(sh.id).filter(it => (it[lv.id] || '') === k), S.run);
+    const list = [...byGroup(itemsOf(sh.id), lv)].map(([k, rows]) => {
+      const t = tally(rows, S.run), n = rows.length;
       return `<button data-act="tocGo" data-k="${esc(k)}"><span>${fold.has(k) ? '▸' : '▾'} ${k === '' ? `<span class="muted">${_t('（なし）')}</span>` : esc(k)}</span><span class="muted" style="font-size:11px">${t.done}/${n}${t.ng ? ` <span style="color:var(--ng)">NG ${t.ng}</span>` : ''}</span></button>`;
     }).join('');
     showPop(btn, `<div class="pop-h">${esc(dn(lv.name))}（${g.size}）${_t('。クリックするとその場所へ移動します')}</div>${list}<hr><div class="cfb"><button data-act="foldAll" data-on="1">${_t('すべて折りたたむ')}</button><button data-act="foldAll" data-on="0">${_t('すべて展開')}</button></div>`);
@@ -4131,7 +4206,7 @@ const actions = {
       it = addItem(null, false, (first ? first.order : 1) - 1);
       if (first) for (const c of sheetCols(curSheet())) if (c.type === 'level') it[c.id] = first[c.id] || '';
     } else it = addItem(S.rows[r], true);
-    S.curId = it.id; S.c = Math.max(S.c, 1);
+    focusNewRow(it);
     renderGrid(); collapse(); paintCursor(); renderProgress(); focusMain();
   },
   // 列の境目の＋: その列の右に入れる（No の列なら一番左）
@@ -4146,8 +4221,7 @@ const actions = {
     commitEdit();
     snap();
     const it = addItem(itemsOf(S.sheet).slice(-1)[0] || null, true);
-    if (S.vf || S.q) { S.vf = ''; S.q = ''; renderToolbar(); }
-    S.curId = it.id; S.c = Math.max(S.c, 1);
+    focusNewRow(it);
     renderGrid(); collapse(); paintCursor(); renderProgress(); focusMain();
   },
   async colRename(btn) {
@@ -4230,8 +4304,7 @@ const actions = {
     commitEdit();
     snap();
     const it = addItem(curItem(), true);
-    S.curId = it.id; S.c = Math.max(S.c, 1);
-    if (S.vf || S.q) { S.vf = ''; S.q = ''; renderToolbar(); }
+    focusNewRow(it);
     renderGrid(); paintCursor(); renderProgress(); focusMain();
   },
   async delRow() {
@@ -4286,7 +4359,7 @@ const actions = {
     for (let r = R.r0; r <= R.r1; r++) {
       const it = S.rows[r];
       for (const c of targets) {
-        const v = getCell(it, c);
+        const v = String(getCell(it, c));  // JSON で作ったファイルには数の値もある
         if (!v || !v.includes(from)) continue;
         // 1文字ずつの書式があるセルは、書式の区切りごとに置き換えて書式を残す（区切りをまたぐ語は置き換わらない）
         const runs = cellRuns(it, c);
@@ -4342,7 +4415,7 @@ const actions = {
   elDup() {
     const e = getEl(S.bSel); if (!e) return;
     snap();
-    const { id, ts, updatedAt, z, ...rest } = e;
+    const { id, ts, bt, updatedAt, z, data, ...rest } = e;  // 画像の中身は JSON を通さない（大きいので）
     const n = addEl(e.owner, e.type, { ...clone(rest), ...(isBinary(e) ? { data: elData(e) } : {}), x: e.x + 16, y: e.y + 16, by: S.me, at: now() });
     S.bSel = n.id; renderBoard();
   },
@@ -4599,7 +4672,7 @@ function bind() {
     e.target.value = '';
     if (!files.length) return;
     if (e.target.dataset.mode === 'open') {
-      const d = await readBook(files[0]);
+      const d = await tryRead(files[0]);
       if (d) { loadDoc(d, null); await checkDraft(true); } else notBook(files[0].name);
     } else importFiles(files);
   });

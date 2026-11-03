@@ -6,6 +6,37 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+### Security
+
+- The page now declares a content security policy. Even if a future bug let a crafted file run script, that script cannot load scripts from a website, send data with `fetch`, or load images from the network.
+- Sheet and column IDs such as `constructor` and `toString`, and result values with such names, are no longer accepted from imported files. They could read inherited values and stop the table from drawing.
+
+### Fixed
+
+- Text typed while a manual save was still writing was marked as saved, though the file did not contain it. Autosave and the warning on closing then did nothing, so the text could be lost. It now stays as an unsaved change.
+- A failed draft, for example with browser storage full, could leave saving waiting forever, so Ctrl+S did nothing.
+- If the shared file could not be read at that moment, saving went ahead without merging and could overwrite what others had saved. Saving now stops and shows the reason, and the changes are merged once the file can be read.
+- A manual save, autosave and the check for others' changes could run at the same time. They now run one at a time.
+- A failed save no longer leaves a temporary `.crswap` file next to your file.
+- The first save after opening a file by double-click could report "merged changes" for every image, clear undo and load every image into memory, even when nothing had changed.
+- Cell formatting, result history or select options of the wrong shape in a file could stop the table or a merge. Such values are now ignored.
+- The conflict list could not open if it held a conflict on a board item that had since been deleted and saved.
+- "Delete" in the conflict list could remove the last run, which stopped the page from drawing. It now refuses, and otherwise removes the run's results and evidence as well.
+- When someone else deleted the sheet or row you were viewing, you stayed on it, and anything added there could not be found later. You now move to a sheet that remains.
+- Reports with more than 400 images lost images, and images could print blank because printing did not wait for them to load.
+- An image the browser cannot read, such as TIFF or HEIC, silently stopped the whole drop or paste. It is now placed as a file.
+- Pasting about 200,000 rows failed.
+- A link followed by a quotation mark, `>` or Japanese punctuation took those characters and the text after them into its address.
+- A new row could be hidden by a column filter or a folded group. The filter or fold hiding it is now removed.
+- Dropping a test file again under a new name kept the old file name on its metrics card.
+- An import of a file that could not be read showed no message.
+- A time in a file that was too large or not a number could break the clock used for later edits, so merges could lose them. Times on the test title now count too.
+- A draft saved after opening a file from a PC whose clock runs ahead was treated as older than the file, and was not offered.
+
+### Changed
+
+- Bulk edits, metrics cards on free sheets, the summary and the table of contents do less repeated work on large files.
+
 ## [0.2.3] - 2026-11-03
 
 ### Security
