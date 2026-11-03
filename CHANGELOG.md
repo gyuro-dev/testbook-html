@@ -6,6 +6,14 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+### Security
+
+- An imported file could list the same board item twice and change only its type to a summary card. Text formatting that had not been checked as numbers then reached the page as HTML. Summary cards now convert their values to numbers when drawn, and the checks on an item's values no longer depend on its type.
+
+### Fixed
+
+- A non-text value in a file's image data or issue link template stopped the page from drawing. These values are now discarded on import.
+
 ## [0.2.2] - 2026-11-02
 
 ### Fixed
