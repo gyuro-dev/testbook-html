@@ -6,6 +6,8 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-03
+
 ### Security
 
 - An imported file could list the same board item twice and change only its type to a summary card. Text formatting that had not been checked as numbers then reached the page as HTML. Summary cards now convert their values to numbers when drawn, and the checks on an item's values no longer depend on its type.
@@ -90,7 +92,8 @@ First public version.
 - Ready-made samples in `samples/`.
 - Automated tests that run in headless Chrome or Edge on Windows, Linux and macOS.
 
-[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/gyuro-dev/testbook-html/compare/v0.1.0...v0.2.0
