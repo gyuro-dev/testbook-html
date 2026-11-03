@@ -98,6 +98,7 @@ A free-form board, one per case per run. The "Evidence" column of the table show
 - "⋯ → Print report (PDF)…" builds a report with the tables, the summary, the evidence boards (optional) and the open comments, and opens the browser's print dialog. Choose "Save as PDF" for a PDF.
 - Drop other testbook files onto a free sheet, or use "＋ Other test metrics", and each becomes a card with that document's progress per run. Dropped onto the table instead, a file is imported, not made into a card. Dropping the same file again refreshes the numbers. "＋ Grand total" sums them all. With one file per feature, this gives you a one-file dashboard.
 - "⋯ → Export this sheet as CSV" exports the current sheet with the current run's results.
+  Values that a spreadsheet could run as a formula (starting with `=`, `+`, `-`, `@`, a tab or a carriage return) get a leading `'`. Plain numbers stay as they are.
 
 ### Working with several people
 
@@ -241,7 +242,7 @@ bash test/run.sh                                          macOS / Linux
 ```
 
 - `-Filter マージ` (`--filter マージ`) runs only the tests whose name contains the text (test names are in Japanese). `-Show` (`--show`) opens a visible browser with the developer tools. `-Browser edge` or `TB_BROWSER=path` picks the browser.
-- When everything passes it prints `227 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
+- When everything passes it prints `232 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
 - `-Update` (`--update`) rewrites the golden files in `test\golden\` and the files in `samples\` after an intentional change; `git diff` then shows what changed.
 
 #### How it works

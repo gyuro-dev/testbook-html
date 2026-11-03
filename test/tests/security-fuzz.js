@@ -155,6 +155,68 @@
     ok(!elHtml(e, false).includes('<img'), '数字のところに HTML が出ない');
   });
 
+  test('細工: 英語の画面でも動かない', async () => {
+    const w = walker();
+    LANG = 'en';
+    try { await each(INJ, CORE, w); await check(w); } finally { LANG = 'ja'; loadDoc(newDoc()); }
+  });
+
+  test('細工: ほかのファイルを落として集計カードを作っても動かない', async () => {
+    const free = newSheet('まとめ', 'free', 2); snap(); D.sheets.push(free); created(free); S.sheet = free.id; render();
+    const other = poison(rich(), INJ, new Set(CORE));
+    const w = walker();
+    await w.step('集計カード', async () => { await addXMetrics(sheetOwner(free.id), [new File([JSON.stringify(other)], INJ + '.json')], { x: 1, y: 1 }); });
+    ok(elementsOf(sheetOwner(free.id)).some(e => e.type === 'xmetric'), 'カードができる');
+    await w.walk();
+    await check(w);
+  });
+
+  // __proto__ を自分の項目として持つ JSON は JSON.stringify では作れないので、文字列で作る
+  const COLOR = `{"color":${JSON.stringify(INJ)}}`;
+
+  test('細工: __proto__ を混ぜても、合わせたあとにプロトタイプが差し替わらない', async () => {
+    const doc = newDoc(), owner = sheetOwner(doc.sheets[0].id), base = `"id":"e_p","owner":"${owner}","type":"frame","x":1,"y":1,"w":9,"h":9,"z":1`;
+    const text = JSON.stringify(doc).replace('"elements":[]', () => `"elements":[{${base},"updatedAt":1,"ts":{"__proto__":5}},{${base},"updatedAt":9,"__proto__":${COLOR},"ts":{"__proto__":9}}]`);
+    const r = await readBook(new File([text], 'evil.json'));
+    r.meta.id = D.meta.id;
+    mergeInto(D, r); render();
+    const e = D.elements.find(x => x.id === 'e_p');
+    ok(Object.getPrototypeOf(e) === Object.prototype, '要素のプロトタイプ');
+    eq(e.color, undefined, '色は入らない');
+    ok(!elHtml(e, false).includes('<img'), '属性を壊さない');
+  });
+
+  test('細工: __proto__ を ID や試験の情報に入れても、取り込まれない', async () => {
+    const text = JSON.stringify(newDoc())
+      .replace('"items":[]', () => '"items":[{"id":"__proto__","order":1,"ts":{},"updatedAt":1}]')
+      .replace('"conflicts":[]', () => `"conflicts":[{"id":"cf_p","kind":"value","coll":"elements","obj":"e_x","k":"__proto__","value":${COLOR},"vt":1,"at":1,"ts":{},"updatedAt":1}]`)
+      .replace('"meta":{', () => `"meta":{"__proto__":{"issueUrl":${JSON.stringify(INJ)}},`);
+    const r = await readBook(new File([text], 'evil.json'));
+    eq(r.items.length, 0, '__proto__ という ID の行は捨てる');
+    eq(r.conflicts.length, 0, '__proto__ を書き換える競合も捨てる');
+    ok(Object.getPrototypeOf(r.meta) === Object.prototype, '試験の情報のプロトタイプ');
+    eq(r.meta.issueUrl, undefined, '不具合票のひな形は入らない');
+  });
+
+  test('細工: CSV では数式の始まりに見える値に \' を付ける。ただの数はそのまま', async () => {
+    const K = sheetCols(curSheet()).find(c => c.type === 'text').id;
+    let blob = null; window.download = (n, b) => { blob = b; };
+    snap();
+    const cases = [['=1+1', "'=1+1"], ['+cmd|x', "'+cmd|x"], ['-1+2', "'-1+2"], ['@SUM(A1)', "'@SUM(A1)"], ['\t=1', "'\t=1"], ['\r=1', "'\r=1"], ['=HYPERLINK("u")', "'=HYPERLINK(\"u\")"],
+      ['-1', '-1'], ['+81', '+81'], ['-1.5', '-1.5'], ['-', '-'], ['+', '+'], ['50%', '50%'], ['普通の文字', '普通の文字'], ['a=1', 'a=1']];
+    for (const [v] of cases) setF(addItem(), K, v);
+    setF(sheetCols(curSheet()).find(c => c.id === K), 'name', '=列名');
+    render(); exportCsv();
+    const text = (await blob.text()).replace(/^﻿/, '');
+    const cell = s => { const m = /^"((?:[^"]|"")*)"/.exec(s); return m[1].replace(/""/g, '"'); };
+    // 1行に値が1つだけ入る列を、ヘッダーの位置で読む
+    const lines = text.split('\r\n'), head = lines[0];
+    ok(head.includes('"\'=列名"') || head.includes('"確認内容"'), 'ヘッダー: ' + head.slice(0, 80));
+    const j = sheetCols(curSheet()).findIndex(c => c.id === K) + 1;
+    const fields = l => { const out = []; let rest = l; while (rest.length) { const v = cell(rest); out.push(v); rest = rest.slice(v.replace(/"/g, '""').length + 3); } return out; };
+    cases.forEach(([v, want], i) => eq(fields(lines[i + 1])[j], want, JSON.stringify(v)));
+  });
+
   test('細工: 消したシートの削除時刻が文字でも、競合の ID に入らない', () => {
     const d = rich();
     d.sheets[1] = { ...d.sheets[1], deleted: true, ts: { deleted: INJ }, updatedAt: 1 };

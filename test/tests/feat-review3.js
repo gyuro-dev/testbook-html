@@ -54,7 +54,7 @@
   };
 
   test('取り込み: 競合の「ほかの人の値」も開くときと同じ検査を通し、通らない値は使わない', async () => {
-    for (const c of [{ k: 'color', value: INJ }, { k: 'type', value: INJ }, { k: 'owner', value: 1 }, { k: 'id', value: 'e_y' }, { k: '__proto__', value: { color: INJ } }, { k: 'constructor', value: 'x' }]) {
+    for (const c of [{ k: 'color', value: INJ }, { k: 'type', value: INJ }, { k: 'owner', value: 1 }, { k: 'id', value: 'e_y' }, { k: 'constructor', value: 'x' }]) {
       const e = await withConflict(c), before = JSON.stringify(e);
       resolveConflict('take', 'cf_a');
       closePanel();
