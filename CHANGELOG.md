@@ -6,6 +6,8 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-03
+
 ### Security
 
 - The page now declares a content security policy. Even if a future bug let a crafted file run script, that script cannot load scripts from a website, send data with `fetch`, or load images from the network.
@@ -123,7 +125,8 @@ First public version.
 - Ready-made samples in `samples/`.
 - Automated tests that run in headless Chrome or Edge on Windows, Linux and macOS.
 
-[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.0...v0.2.1
