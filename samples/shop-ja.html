@@ -1019,15 +1019,18 @@ const EL_TYPES = new Set(['text', 'image', 'frame', 'table', 'file', 'metric', '
 const COLOR_KEYS = new Set(['red', 'blue', 'green', 'orange', 'gray', 'black', 'white', 'yellow']);
 const TEXT_STYLES = new Set(['normal', 'title', 'log']);
 const num = (v, d = 0) => typeof v === 'number' && Number.isFinite(v) ? v : d;
+const XM_NUMS = ['total', 'ok', 'ng', 'hold', 'na', 'none', 'done', 'ev'];
 function cleanEl(e) {
   if (!EL_TYPES.has(e.type) || typeof e.owner !== 'string') return false;
   for (const k of ['x', 'y', 'w', 'h', 'z', 'n']) if (k in e) e[k] = num(e[k]);
   for (const k of ['color', 'fc']) if (e[k] && !COLOR_KEYS.has(e[k])) delete e[k];
   if (e.style && !TEXT_STYLES.has(e.style)) delete e.style;
-  if (e.type === 'table' && !(Array.isArray(e.cells) && e.cells.length && e.cells.every(r => Array.isArray(r) && r.length))) e.cells = [['']];
-  if (e.type === 'text' && e.runs && !(Array.isArray(e.runs) && e.runs.every(t => t && typeof t === 'object'))) delete e.runs;
+  if ('data' in e && typeof e.data !== 'string') delete e.data;
+  // 種類が何であっても見る（合わせると、あとから種類だけ変わることがあるので）
+  if ((e.type === 'table' || 'cells' in e) && !(Array.isArray(e.cells) && e.cells.length && e.cells.every(r => Array.isArray(r) && r.length))) e.cells = [['']];
   if (e.type === 'xmetric') e.runs = (Array.isArray(e.runs) ? e.runs : []).filter(t => t && typeof t === 'object')
-    .map(t => { for (const k of ['total', 'ok', 'ng', 'hold', 'na', 'none', 'done', 'ev']) t[k] = num(t[k]); return t; });
+    .map(t => { for (const k of XM_NUMS) t[k] = num(t[k]); return t; });
+  else if (e.runs && !(Array.isArray(e.runs) && e.runs.every(t => t && typeof t === 'object'))) delete e.runs;
   return true;
 }
 // 削除の印（tomb）は種類を持たないので cleanEl を通らない。印に要らない値は捨てて残す（あとで合わせて復活しても、確かめていない値が画面に出ないように）
@@ -1038,6 +1041,7 @@ function normalize(d) {
   for (const k of COLLS) d[k] = Array.isArray(d[k]) ? keep(d[k], okId) : [];
   d.meta = Object.assign({ id: uid('d_'), title: _t('無題の試験'), ts: {} }, d.meta);
   if (!okId(d.meta)) d.meta.id = uid('d_');
+  if (d.meta.issueUrl && typeof d.meta.issueUrl !== 'string') delete d.meta.issueUrl;
   if (!live(d.sheets).length) d.sheets.push(newSheet(_t('試験項目'), 'cases', 1));
   if (!live(d.runs).length) d.runs.push({ id: uid('r_'), name: _t('1回目'), order: 1, ts: {}, updatedAt: now() });
   for (const s of d.sheets) {
@@ -1344,7 +1348,7 @@ function mergeInto(dst, src) {
   const have = new Set(dst.conflicts.map(c => c.id)), t = now();
   const add = c => { if (have.has(c.id)) return; have.add(c.id); dst.conflicts.push({ ...c, at: t, ts: {}, updatedAt: t }); st.conflicts++; };
   for (const c of ctx.conflicts) add({ id: `cf_${c.obj}_${c.k}_${c.vt}`, kind: 'value', coll: c.coll, obj: c.obj, k: c.k, value: c.value, vt: c.vt });
-  for (const r of ctx.revived) add({ id: `rv_${r.obj}_${r.t}`, kind: 'revived', coll: r.coll, obj: r.obj });
+  for (const r of ctx.revived) add({ id: `rv_${r.obj}_${num(r.t)}`, kind: 'revived', coll: r.coll, obj: r.obj });
   if (dst === D) {
     CLOCK = Math.max(CLOCK, maxT);
     // 合わせた後に「元に戻す」と、取り込んだほかの人の変更まで消してしまうので履歴を捨てる
@@ -3269,18 +3273,20 @@ async function addXMetrics(owner, files, at) {
   if (n) toast(_t('{0} 件の試験ファイルの集計カードを置きました（同じファイルをもう一度ドロップすると数字が最新になります）', n));
   return { n, left };
 }
+// 集計カードの数字。描くときも数にしてから使う（文字の要素の書式が、合わせたあとに集計カードの値になることがあるので）
+const xRuns = e => (Array.isArray(e.runs) ? e.runs : []).map(t => { const o = { name: t && t.name }; for (const k of XM_NUMS) o[k] = num(t && t[k]); return o; });
 function xmetricHtml(e) {
-  const runs = e.runs || [];
+  const runs = xRuns(e);
   return `<div class="metric xm"><div class="mh">${esc(e.title || '')}<span class="muted" style="font-weight:400;font-size:11px;margin-left:8px">${e.srcAt ? `${_t('ファイルの更新日時')} ${fmt(e.srcAt, true)}` : ''}${e.file ? ` ・ ${esc(e.file)}` : ''}</span></div>
     <table>${runs.map(t => `<tr><td>${esc(dn(t.name))}</td><td>${barHtml(t, 160)}</td><td>${t.done}/${t.total}　${pct(t)}${t.ng ? `　<span style="color:var(--ng)">NG ${t.ng}</span>` : ''}</td></tr>`).join('') || `<tr><td class="muted">${_t('（試験項目がありません）')}</td></tr>`}</table></div>`;
 }
 // 自由シートに置いた「ほかの試験の集計」を全部足したカード（プロジェクト全体の消化率）
 function xtotalHtml(e) {
   const xs = elementsOf(e.owner).filter(x => x.type === 'xmetric'), sum = { total: 0, ok: 0, ng: 0, hold: 0, na: 0, none: 0, done: 0 };
-  for (const x of xs) { const t = (x.runs || []).slice(-1)[0]; if (!t) continue; for (const k of Object.keys(sum)) sum[k] += t[k] || 0; }
+  for (const x of xs) { const t = xRuns(x).slice(-1)[0]; if (!t) continue; for (const k of Object.keys(sum)) sum[k] += t[k]; }
   return `<div class="metric xm"><div class="mh">${_t('すべての試験の合計（{0} ファイル、それぞれ最新の実施回）', xs.length)}</div>
     <div class="mcards"><div><b>${pct(sum)}</b><span>${_t('消化率')}</span></div><div><b>${sum.total}</b><span>${_t('項目数')}</span></div><div><b style="color:var(--ok)">${sum.ok}</b><span>OK</span></div><div><b style="color:var(--ng)">${sum.ng}</b><span>NG</span></div><div><b style="color:var(--hold)">${sum.hold}</b><span>${_t('保留')}</span></div><div><b>${sum.none}</b><span>${_t('未実施')}</span></div></div>
-    <table>${xs.map(x => { const t = (x.runs || []).slice(-1)[0] || { total: 0, done: 0, ok: 0, ng: 0, hold: 0, na: 0 }; return `<tr><td>${esc(x.title || '')}</td><td>${barHtml(t, 160)}</td><td>${t.done}/${t.total}　${pct(t)}</td></tr>`; }).join('')}</table></div>`;
+    <table>${xs.map(x => { const t = xRuns(x).slice(-1)[0] || { total: 0, done: 0, ok: 0, ng: 0, hold: 0, na: 0 }; return `<tr><td>${esc(x.title || '')}</td><td>${barHtml(t, 160)}</td><td>${t.done}/${t.total}　${pct(t)}</td></tr>`; }).join('')}</table></div>`;
 }
 async function compressImage(file) {
   const url = URL.createObjectURL(file);
