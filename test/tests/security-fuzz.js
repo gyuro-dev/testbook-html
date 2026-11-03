@@ -70,7 +70,11 @@
         await step('票を閉じる', () => closeEvidence());
       }
       await step('集計', () => actions.summary());
-      for (const scope of ['all', 'sheet']) await step('報告書', () => { const box = document.createElement('div'); box.innerHTML = reportHtml({ scope, withEv: true }); document.body.appendChild(box); scan('報告書'); box.remove(); });
+      for (const scope of ['all', 'sheet']) await step('報告書', async () => {
+        const print = window.print, ask = window.dialog;
+        window.print = () => {}; window.dialog = async o => o.inputs ? [scope, '1'] : true;
+        try { await printReport(); scan('報告書'); dispatchEvent(new Event('afterprint')); } finally { window.print = print; window.dialog = ask; }
+      });
       await step('競合の一覧', () => { renderConflicts(); scan('競合の一覧'); const p = $('#cfpanel'); if (p) p.remove(); });
       await step('表に戻す', () => { S.view = 'sheet'; S.sheet = (caseSheets()[0] || sheets()[0]).id; render(); });
     };
