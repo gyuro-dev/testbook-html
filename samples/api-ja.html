@@ -1004,7 +1004,7 @@ function newDoc() {
  * スクリプトが動かないように）。 */
 // ID は英数字と _ - . : だけ（数十万件を毎回見るので、正規表現より速い文字コードの走査にしている）
 function safeId(s) {
-  if (typeof s !== 'string' || !s.length || s.length > 200) return false;
+  if (typeof s !== 'string' || !s.length || s.length > 200 || s === '__proto__') return false;
   for (let i = 0; i < s.length; i++) {
     const c = s.charCodeAt(i);
     if (!((c >= 97 && c <= 122) || (c >= 48 && c <= 58) || (c >= 65 && c <= 90) || c === 95 || c === 45 || c === 46)) return false;
@@ -1038,7 +1038,7 @@ function tombEl(e) { for (const k of Object.keys(e)) if (!TOMB_KEYS.has(k)) dele
 function normalize(d) {
   if (!d || d.format !== 'testbook' || d.version !== 2) return null;
   for (const k of COLLS) d[k] = Array.isArray(d[k]) ? keep(d[k], okId) : [];
-  d.meta = Object.assign({ id: uid('d_'), title: _t('無題の試験'), ts: {} }, d.meta);
+  d.meta = { id: uid('d_'), title: _t('無題の試験'), ts: {}, ...d.meta };  // Object.assign は __proto__ でプロトタイプを差し替えてしまう
   if (!okId(d.meta)) d.meta.id = uid('d_');
   if (d.meta.issueUrl && typeof d.meta.issueUrl !== 'string') delete d.meta.issueUrl;
   if (!live(d.sheets).length) d.sheets.push(newSheet(_t('試験項目'), 'cases', 1));
@@ -1245,6 +1245,7 @@ function mergeObj(a, b, coll, ctx) {
   const out = { ...a, ts: { ...ta }, bt: { ...(a.bt || {}) } };
   let changed = false;
   for (const k of Object.keys(tb)) {
+    if (k === '__proto__') continue;  // 代入するとプロトタイプが差し替わり、検査していない値が要素の値として読めてしまう
     if (k === 'columns' && Array.isArray(a.columns) && Array.isArray(b.columns)) continue;
     if (k === 'hist' || k === 'histX') continue;
     if (k === 'idNext' || k === 'histClr') { if ((b[k] || 0) > (a[k] || 0)) { out[k] = b[k]; changed = true; } out.ts[k] = Math.max(ta[k] || 0, tb[k] || 0); continue; }  // 番号・時刻は大きいほう
@@ -3853,7 +3854,13 @@ function exportCsv() {
   const sh = curSheet();
   if (sh.kind !== 'cases') { toast(_t('CSV に書き出せるのは試験項目のシートだけです'), 'err'); return; }
   buildIndex();
-  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  // 表計算ソフトが数式として実行しないように、数式の始まりに見える値には ' を付ける（ただの数と、- や + だけの値はそのまま）
+  const q = v => {
+    const s = String(v ?? '');
+    if (!s) return '""';
+    const c = s.charCodeAt(0), risky = (c === 61 || c === 43 || c === 45 || c === 64 || c === 9 || c === 13) && !/^[+-]?[\d.,%]*$/.test(s);
+    return '"' + (risky ? "'" + s : s).replace(/"/g, '""') + '"';
+  };
   const C = sheetCols(sh);
   const lines = [['No', ...C.map(c => dn(c.name))].map(q).join(',')];
   itemsOf(sh.id).forEach((it, i) => lines.push([i + 1, ...C.map(c => cellText(it, c))].map(q).join(',')));

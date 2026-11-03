@@ -9,6 +9,8 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 ### Security
 
 - An imported file could list the same board item twice and change only its type to a summary card. Text formatting that had not been checked as numbers then reached the page as HTML. Summary cards now convert their values to numbers when drawn, and the checks on an item's values no longer depend on its type.
+- A `__proto__` field in an imported file could replace a board item's prototype during a merge, so an unchecked value could be read as the item's color and reach the page as HTML. Such fields are now ignored, and `__proto__` is no longer accepted as an ID.
+- CSV export wrote values starting with `=`, `+`, `-`, `@`, a tab or a carriage return as they were, so a spreadsheet could run them as formulas. These values now start with `'`. Plain numbers such as `-1` and `+81` stay as they are. In a spreadsheet the `'` is visible in those cells.
 
 ### Fixed
 
