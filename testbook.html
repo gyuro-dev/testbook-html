@@ -344,6 +344,28 @@ body.dragging .gridwrap,body.dragging .boardwrap{outline:3px dashed var(--accent
   .title{width:40vw}
   .status{display:none}
 }
+/* スマホ幅だけ。JS の PHONE と同じ条件 */
+@media screen and (max-width:600px){
+  #app{height:100dvh}
+  input,select,textarea,#editor,#reditor,.top .title,.tx-ed{font-size:16px}  /* iOS が入力欄にフォーカスしたときに拡大しないように */
+  .top{overflow-x:auto;scrollbar-width:none;gap:6px;padding:6px 8px}
+  .top>*{flex:none}
+  .brand,.top .spacer{display:none}
+  .top .title{order:-3;width:38vw}
+  .tx.title{width:auto}
+  .tx-ed.title{width:100%}
+  .top .cfbtn{order:-2}
+  .top [data-act="save"],.top [data-act="more"]{order:-1}
+  .tabs{padding:0 4px}
+  .toolbar,.bb-row{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .toolbar>*,.bb-row>*{flex:none}
+  .progress,.toolbar [data-act="togglePane"]{order:-1;margin-left:0}
+  .progress .bar{width:56px}
+  .gridwrap{flex:1 1 0;height:auto;min-height:0}
+  .pane{flex:0 0 45%;padding:10px 12px 24px}
+  .summary{padding:12px}
+  .foot{display:none}
+}
 </style>
 </head>
 <body>
@@ -1792,6 +1814,7 @@ function renderProgress() {
 /* ---------- 表 ---------- */
 const grid = () => $('#grid');
 const ed = () => $('#editor');
+const PHONE = matchMedia('screen and (max-width:600px)');  // CSS のスマホ幅と同じ条件
 const sheetCols = sh => sh.columns.filter(c => !c.deleted);
 const cols = () => [NO_COL, ...sheetCols(curSheet())];
 const colById = id => sheetCols(curSheet()).find(c => c.id === id);
@@ -2094,8 +2117,8 @@ function renderGrid() {
   // 結合表示: その列の左にある階層の列が全部同じ（＝同じグループ）で、値も同じなら上のセルとつなげて見せる
   const lvIds = [];
   S.lvLeft = C.map(c => { const l = lvIds.slice(); if (c.type === 'level') lvIds.push(c.id); return l; });
-  // 列の固定: 左から fz 列を、横にスクロールしても残す
-  S.fz = Math.min(freezeOf(curSheet()), C.length);
+  // 列の固定: 左から fz 列を、横にスクロールしても残す。スマホ幅では1列まで（固定した列で画面が埋まると、ほかの列が見えなくなる）
+  S.fz = Math.min(freezeOf(curSheet()), C.length, PHONE.matches ? 1 : Infinity);
   S.fzLeft = []; let x = 0;
   for (let j = 0; j < S.fz; j++) { S.fzLeft.push(x); x += C[j].w; }
   S.fzW = x;
@@ -4601,6 +4624,7 @@ function bind() {
     } else if (t) pasteGrid(t);
   });
 
+  PHONE.addEventListener('change', () => { if ($('#main').hidden) return; if (S.editing) commitEdit(); S.gridSig = null; renderGrid(); });
   document.addEventListener('mousedown', onBoardMouseDown);
   document.addEventListener('dblclick', onBoardDblClick);
   document.addEventListener('mousemove', e => {

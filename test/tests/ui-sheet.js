@@ -48,6 +48,29 @@
     eq([freezeOf(curSheet()), document.querySelectorAll('#grid tr[data-r="0"] td.fz').length], [1, 1], '固定をやめる');
   });
 
+  test('列: スマホ幅では固定を1列にし、幅が戻れば設定どおりに戻す。ファイルの設定は変えない', () => {
+    snap(); addItem(); render();
+    const fixed = () => document.querySelectorAll('#grid tr[data-r="0"] td.fz').length;
+    eq([S.fz, fixed()], [4, 4], 'PC 幅: 既定の4列');
+    const change = narrow => {
+      Object.defineProperty(PHONE, 'matches', { value: narrow, configurable: true });
+      PHONE.dispatchEvent(new Event('change'));
+    };
+    try {
+      change(true);
+      eq([S.fz, S.fzW, fixed()], [1, cols()[0].w, 1], 'スマホ幅: No の列だけ');
+      eq(freezeOf(curSheet()), 4, 'ファイルの設定はそのまま');
+    } finally { delete PHONE.matches; PHONE.dispatchEvent(new Event('change')); }
+    eq([S.fz, fixed()], [4, 4], 'PC 幅に戻る');
+  });
+
+  test('スマホ幅の CSS は JS と同じ条件で、画面のときだけ効く', () => {
+    const rules = [...document.styleSheets].flatMap(s => [...s.cssRules]).filter(r => r.media && r.media.mediaText === PHONE.media);
+    eq(rules.length, 1, '同じ条件の @media が1つ');
+    ok(PHONE.media.startsWith('screen'), '印刷には効かない');
+    ok(PHONE.media.includes('600px'), 'PC の幅には効かない');
+  });
+
   test('列: 「＋ 列を追加」で右端に増え、最後の1列は消せない', async () => {
     snap(); addItem(); render();
     TB.click('[data-act="colAddEnd"]');

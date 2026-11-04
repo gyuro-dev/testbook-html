@@ -6,6 +6,10 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+### Fixed
+
+- On phones (screens up to 600px wide), the page no longer runs off the side. The header and toolbars stay on one line that scrolls sideways, with Save, the progress bar and the detail panel button first, and the table and the detail panel share the screen. Only the No column stays frozen there, because the default frozen columns filled the whole width and hid the rest of the table. The frozen columns saved in the file do not change, and wider screens look the same as before.
+
 ## [0.2.4] - 2026-11-03
 
 ### Security

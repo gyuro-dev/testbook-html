@@ -242,7 +242,7 @@ bash test/run.sh                                          macOS / Linux
 ```
 
 - `-Filter マージ` (`--filter マージ`) runs only the tests whose name contains the text (test names are in Japanese). `-Show` (`--show`) opens a visible browser with the developer tools. `-Browser edge` or `TB_BROWSER=path` picks the browser.
-- When everything passes it prints `260 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
+- When everything passes it prints `262 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
 - `-Update` (`--update`) rewrites the golden files in `test\golden\` and the files in `samples\` after an intentional change; `git diff` then shows what changed.
 
 #### How it works
