@@ -6,6 +6,8 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-04
+
 ### Fixed
 
 - On phones (screens up to 600px wide), the page no longer runs off the side. The header and toolbars stay on one line that scrolls sideways, with Save, the progress bar and the detail panel button first, and the table and the detail panel share the screen. Only the No column stays frozen there, because the default frozen columns filled the whole width and hid the rest of the table. The frozen columns saved in the file do not change, and wider screens look the same as before.
@@ -129,7 +131,8 @@ First public version.
 - Ready-made samples in `samples/`.
 - Automated tests that run in headless Chrome or Edge on Windows, Linux and macOS.
 
-[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.1...v0.2.2
