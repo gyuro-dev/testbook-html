@@ -167,6 +167,315 @@
     ok(document.querySelector('#metricRun'), '実施回を選べる');
   });
 
+  /* ---- 複数の要素の選択 ---- */
+  const domOf = id => board().querySelector(`.el[data-eid="${id}"]`);
+  const pos = l => l.map(e => [e.x, e.y]);
+  const rel = l => l.map(e => [e.x - l[0].x, e.y - l[0].y]);
+  // 枠・文字・右上から左下への線（始点が右上で、w が負）を置く
+  const three = () => {
+    snap();
+    const f = addEl(boardOwner(), 'frame', { x: 100, y: 100, w: 80, h: 40, color: 'blue' });
+    const t = addEl(boardOwner(), 'text', { x: 300, y: 120, w: 120, text: 'メモ' });
+    const l = addEl(boardOwner(), 'line', { x: 400, y: 200, w: -160, h: 60, arrow: true, color: 'red' });
+    renderBoard();
+    return [f, t, l];
+  };
+  // 本物のマウスと同じ順でイベントを送る
+  const mouse = (type, target, x, y, mods) => target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y, ...mods }));
+  const center = id => { const d = domOf(id).querySelector('.tx, line.hit, .edge, img') || domOf(id), r = d.getBoundingClientRect(); return [d, r.left + r.width / 2, r.top + r.height / 2]; };
+  const clickEl = (id, mods) => { const [d, x, y] = center(id); mouse('mousedown', d, x, y, mods); mouse('mouseup', window, x, y, mods); };
+  const dragEl = (id, dx, dy, mods) => { const [d, x, y] = center(id); mouse('mousedown', d, x, y, mods); mouse('mousemove', window, x + dx, y + dy, mods); mouse('mouseup', window, x + dx, y + dy, mods); };
+  const marquee = (x1, y1, x2, y2, mods) => { const r = board().getBoundingClientRect(); mouse('mousedown', board(), r.left + x1, r.top + y1, mods); mouse('mousemove', window, r.left + x2, r.top + y2, mods); const box = board().querySelector('.marquee'); mouse('mouseup', window, r.left + x2, r.top + y2, mods); return box; };
+  const selected = () => [...board().querySelectorAll('.el.sel')].map(d => d.dataset.eid).sort();
+  const ids = l => l.map(e => e.id).sort();
+
+  test('複数選択: Shift / Ctrl+クリックで足して外し、Ctrl+A で全部、Esc で解除する', () => {
+    openBoard();
+    const [f, t, l] = three();
+    clickEl(f.id);
+    eq([selected(), multiSel()], [[f.id], null], '1つのときは今までどおり');
+    clickEl(t.id, { shiftKey: true });
+    eq(selected(), ids([f, t]), 'Shift+クリックで足す');
+    clickEl(l.id, { ctrlKey: true });
+    eq(selected(), ids([f, t, l]), 'Ctrl+クリックで足す（線も選べる）');
+    clickEl(t.id, { ctrlKey: true });
+    eq(selected(), ids([f, l]), 'もう一度押すと外す');
+    clickEl(l.id, { shiftKey: true });
+    eq([selected(), multiSel(), S.bSel], [[f.id], null, f.id], '1つに戻ると、ふつうの選択');
+    bkey('a', { ctrl: true });
+    eq(selected(), ids([f, t, l]), 'Ctrl+A で全部');
+    bkey('Escape');
+    eq([selected(), S.bSel, S.view], [[], null, 'board'], 'Esc で解除（表には戻らない）');
+    bkey('a', { ctrl: true }); clickEl(t.id);
+    eq([selected(), multiSel()], [[t.id], null], '選んだ物を動かさずにクリックすると、それだけになる');
+  });
+
+  test('複数選択: 何もないところからのドラッグで、全体が入った要素を選ぶ。クリックとダブルクリックは今までどおり', async () => {
+    openBoard();
+    const [f, t, l] = three();
+    const box = marquee(90, 90, 200, 150);
+    ok(box, 'ドラッグ中は範囲が見える');
+    eq([selected(), board().querySelector('.marquee')], [[f.id], null], '枠だけが入る。離すと範囲は消える');
+    marquee(90, 90, 340, 150);
+    eq(selected(), [f.id], '一部だけ入った文字は選ばない');
+    marquee(230, 100, 500, 300);
+    eq(selected(), ids([t, l]), '線は両端が入れば選ぶ（w が負でも）');
+    marquee(90, 90, 200, 150, { shiftKey: true });
+    eq(selected(), ids([f, t, l]), 'Shift を押していれば足す');
+    const r = board().getBoundingClientRect();
+    mouse('mousedown', board(), r.left + 600, r.top + 400); mouse('mouseup', window, r.left + 600, r.top + 400);
+    eq([selected(), S.bSel], [[], null], '何もないところのクリックは解除');
+    marquee(600, 400, 700, 500);
+    eq(selected(), [], '何も入らなければ何も選ばない');
+    board().dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: r.left + 600, clientY: r.top + 400 })); await sleep(0);
+    ok(S.bEdit, 'ダブルクリックは文字を書き始める');
+  });
+
+  test('複数選択: ドラッグで相対位置を保って動かし、1回の Ctrl+Z で戻る。線は両端が一緒に動く', () => {
+    openBoard();
+    const list = three(), [f, t, l] = list, before = pos(list), w = [l.w, l.h];
+    bkey('a', { ctrl: true });
+    dragEl(t.id, 40, 80);
+    eq(pos(list), before.map(([x, y]) => [x + 40, y + 80]), 'まとめて動く');
+    eq([l.w, l.h], w, '線の向きと長さは変わらない');
+    eq(selected(), ids(list), '動かしたあとも選択は残る');
+    eq([domOf(f.id).style.left, domOf(l.id).style.left], ['140px', 40 + 400 - 160 - 12 + 'px'], '画面の位置も動く（線は余白の分だけ左）');
+    eq(f.ts.x > 0 && t.ts.y > 0 && l.ts.x > 0, true, '要素ごとに setF で変える（合わせる処理が見る時刻が付く）');
+    bkey('z', { ctrl: true });
+    eq(pos(list), before, '1回で全部戻る');
+    bkey('z', { ctrl: true, shift: true });
+    eq(pos(list), before.map(([x, y]) => [x + 40, y + 80]), 'やり直しも1回');
+  });
+
+  test('複数選択: 左上の端で止まり、形が崩れない。4px 刻みでない位置でも相対位置を保つ', () => {
+    openBoard();
+    const list = three(), [f, t, l] = list;
+    snap(); setF(f, 'x', 101); setF(t, 'y', 123); renderBoard();
+    const shape = rel(list);
+    bkey('a', { ctrl: true });
+    dragEl(t.id, 8, 8);
+    eq(rel(list), shape, '4px 刻みに丸めても、間隔は変わらない');
+    dragEl(t.id, -5000, -5000);
+    eq(rel(list), shape, '端まで行っても間隔は変わらない');
+    eq([f.x, f.y], [0, 0], 'いちばん左上の物が端で止まる');
+    bkey('ArrowLeft'); bkey('ArrowUp');
+    eq(rel(list), shape, '端で矢印を押しても形は崩れない');
+    eq([f.x, f.y], [0, 0], '動かない');
+    bkey('ArrowRight', { shift: true }); bkey('ArrowDown');
+    eq([f.x, f.y, rel(list)], [16, 1, shape], '矢印キーでまとめて動く（Shift で 16px）');
+    eq(selected(), ids(list), '選択は残る');
+    bkey('z', { ctrl: true });
+    eq([f.x, f.y], [16, 0], '矢印1回ずつ戻る');
+  });
+
+  test('複数選択: 線の始点が端に近いときも、線の全体で端を見る', () => {
+    openBoard();
+    snap();
+    const a = addEl(boardOwner(), 'frame', { x: 400, y: 200, w: 40, h: 40 }), l = addEl(boardOwner(), 'line', { x: 200, y: 200, w: -100, h: 0 });
+    renderBoard(); bkey('a', { ctrl: true });
+    dragEl(a.id, -1000, 0);
+    eq([elBox(l).x, l.x, a.x], [0, 100, 300], '線の左端が 0 で止まり、枠も同じだけ動く');
+  });
+
+  test('複数選択: 画像を含めて動かすと、選んでいない上の印も一緒に動く', () => {
+    openBoard();
+    snap();
+    const data = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==';
+    const img = addEl(boardOwner(), 'image', { x: 100, y: 100, w: 200, h: 100, data }), other = addEl(boardOwner(), 'frame', { x: 400, y: 100, w: 40, h: 40 });
+    const m = addEl(boardOwner(), 'marker', { x: 150, y: 120, w: 28, h: 28, n: 1 }), far = addEl(boardOwner(), 'marker', { x: 600, y: 300, w: 28, h: 28, n: 2 });
+    renderBoard(); selectEls([img.id, other.id]);
+    dragEl(img.id, 40, 40);
+    eq([img.x, other.x, m.x, far.x], [140, 440, 190, 600], '印は一緒に、離れた物は動かない');
+    bkey('z', { ctrl: true });
+    eq([img.x, other.x, m.x], [100, 400, 150], '印も一緒に戻る');
+  });
+
+  test('複数選択: 道具のボタンは最前面・複製・削除だけ。つまみも編集もない', () => {
+    openBoard();
+    const list = three(), [f, t, l] = list;
+    clickEl(l.id);
+    ok(board().querySelector('.lh'), '線を1つ選ぶと端のつまみが出る');
+    bkey('a', { ctrl: true });
+    eq([...board().querySelectorAll('.seltb button')].map(b => b.dataset.act), ['elFront', 'elDup', 'elDel'], 'ボタン');
+    ok(board().querySelector('.seltb').textContent.includes('3 個を選択中'), '選んだ数が出る');
+    eq(board().querySelector('.lh'), null, '線のつまみは出ない');
+    eq(getComputedStyle(domOf(f.id).querySelector('.rh')).display, 'none', '大きさのつまみは出ない');
+    bkey('Enter'); bkey('F2');
+    eq(S.bEdit, null, 'Enter で編集を始めない');
+    bkey('b', { ctrl: true }); eq(t.bold, undefined, 'Ctrl+B は効かない');
+    clickEl(f.id);
+    eq(getComputedStyle(domOf(f.id).querySelector('.rh')).display, 'block', '1つに戻すと大きさのつまみが出る');
+    ok(!domOf(f.id).classList.contains('msel') && !domOf(t.id).classList.contains('sel'), '見た目も1つに戻る');
+    clickEl(t.id); clickEl(l.id); ok(board().querySelector('.lh'), '線のつまみも戻る');
+    clickEl(f.id, { shiftKey: true }); eq(board().querySelector('.lh'), null, '線を選んだまま足すと、つまみが消える');
+    bkey('Escape');
+    clickEl(l.id);
+    const h = board().querySelector('.lh[data-end="2"]'), r = h.getBoundingClientRect(), x = r.left + 7, y = r.top + 7;
+    mouse('mousedown', h, x, y, { shiftKey: true }); mouse('mousemove', window, x + 40, y + 200, { shiftKey: true }); mouse('mouseup', window, x + 40, y + 200, { shiftKey: true });
+    eq([selected(), l.w], [[l.id], 0], 'つまみの Shift+ドラッグは今までどおり（垂直にそろえる。選択に足さない）');
+  });
+
+  test('複数選択: Delete と切り取りは1回の Ctrl+Z で全部戻り、複製と最前面は重なりの順を保つ', () => {
+    openBoard();
+    const list = three(), [f, t, l] = list;
+    snap(); const under = addEl(boardOwner(), 'frame', { x: 700, y: 100, w: 40, h: 40 }); renderBoard();
+    selectEls([f.id, l.id]);
+    bkey('Delete');
+    eq([els().map(e => e.id), S.bSel, multiSel()], [[t.id, under.id], null, null], '選んだ物だけ消える');
+    bkey('z', { ctrl: true });
+    eq(ids(els()), ids([f, t, l, under]), '1回で全部戻る');
+    selectEls([f.id, l.id]);
+    bkey('d', { ctrl: true });
+    const made = els().slice(-2);
+    eq(made.map(e => [e.type, e.x, e.y]), [['frame', 116, 116], ['line', 416, 216]], '少しずらして複製する');
+    eq(made[1].w, -160, '線の向きも同じ');
+    eq(selected(), ids(made), '複製した物が選ばれる');
+    ok(made[0].z < made[1].z && made[0].z > under.z, '重なりの順を保って手前に置く');
+    bkey('z', { ctrl: true });
+    eq(els().length, 4, '1回で複製が全部消える');
+    selectEls([t.id, f.id]);
+    TB.click('.seltb [data-act="elFront"]');
+    ok(f.z < t.z && t.z > under.z && f.z > under.z, '最前面へ（2つの前後は保つ）');
+    eq(selected(), ids([f, t]), '選択は残る');
+    bkey('z', { ctrl: true });
+    ok(f.z < t.z && t.z < l.z, '1回で戻る');
+    selectEls([f.id, t.id]);
+    TB.clip(wrap(), 'cut', TB.dt());
+    eq(els().length, 2, '切り取りで消える');
+    bkey('z', { ctrl: true });
+    eq(els().length, 4, '1回で戻る');
+  });
+
+  test('複数選択: 別のボードへ相対位置を保って貼り付ける。1つのときの動きは変わらない', async () => {
+    openBoard();
+    const list = three(), [f, t, l] = list, shape = rel(list);
+    bkey('a', { ctrl: true });
+    const dt = TB.clip(wrap(), 'copy', TB.dt());
+    eq(JSON.parse(dt.getData(EL_MIME)).map(o => o.type), ['frame', 'text', 'line'], '奥から順に要素そのものが入る');
+    eq(dt.getData('text/plain').split('\n')[1], 'メモ', 'ほかのアプリには文字');
+    TB.click('[data-act="evNav"][data-d="1"]');
+    eq(els().length, 0, '別の項目');
+    const r = board().getBoundingClientRect();
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    board().dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: r.left + 40, clientY: r.top + 60 }));
+    TB.clip(wrap(), 'paste', TB.dt({ extra: { [EL_MIME]: dt.getData(EL_MIME) } })); await sleep(0);
+    const p = els();
+    eq(p.map(e => e.type), ['frame', 'text', 'line'], '3つ入る');
+    eq(rel(p), shape, '相対位置を保つ');
+    eq([p[0].x, p[0].y], [40, 60], '全体の左上がマウスの位置に来る');
+    eq([p[2].w, p[2].h, p[2].arrow], [-160, 60, true], '線の向きと矢印');
+    ok(p.every(e => e.owner === boardOwner() && !list.includes(e)), '別の物として入る');
+    ok(p[0].z < p[1].z && p[1].z < p[2].z, '重なりの順');
+    eq(selected(), ids(p), '貼った物が全部選ばれる');
+    bkey('z', { ctrl: true });
+    eq(els().length, 0, '1回で全部消える');
+    bkey('z', { ctrl: true, shift: true });
+    TB.clip(wrap(), 'paste', TB.dt({ extra: { [EL_MIME]: dt.getData(EL_MIME) } })); await sleep(0);
+    eq(rel(els().slice(3)), shape, 'マウスを動かさずに貼ると下に置く（相対位置は同じ）');
+    ok(els()[3].y >= Math.max(...els().slice(0, 3).map(e => elBox(e).y)), '前に貼った物の下');
+    // 線の始点より終点が左のとき: 全体の左上で合わせるので、はみ出さない
+    snap(); for (const e of [...els()]) setF(e, 'deleted', true); renderBoard();
+    board().dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: r.left, clientY: r.top }));
+    TB.clip(wrap(), 'paste', TB.dt({ extra: { [EL_MIME]: JSON.stringify([{ type: 'line', x: 400, y: 100, w: -300, h: 50 }, { type: 'marker', x: 200, y: 110, w: 28, h: 28, n: 1 }]) } })); await sleep(0);
+    eq(els().map(e => [e.x, e.y]), [[300, 0], [100, 10]], '線の左端が左上になる');
+  });
+
+  test('複数選択: 自由シートでも使える。1つのコピーと貼り付けは今までと同じ位置', async () => {
+    snap(); const s = newSheet('説明', 'free', 2); D.sheets.push(s); created(s); S.sheet = s.id; S.view = 'sheet'; render();
+    const list = three();
+    bkey('a', { ctrl: true });
+    eq(selected(), ids(list), '全部選ぶ');
+    bkey('Delete'); eq(els().length, 0, '消える');
+    bkey('z', { ctrl: true });
+    selectEl(list[0].id);
+    const dt = TB.clip(wrap(), 'copy', TB.dt());
+    eq(JSON.parse(dt.getData(EL_MIME)).length, 1, '1つだけ');
+    const r = board().getBoundingClientRect();
+    board().dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: r.left + 40, clientY: r.top + 60 }));
+    TB.clip(wrap(), 'paste', dt); await sleep(0);
+    const n = els().slice(-1)[0];
+    eq([n.type, n.x, n.y, S.bSel, multiSel()], ['frame', 40, 60, n.id, null], 'マウスの位置に、1つ選ばれた状態で');
+  });
+
+  test('複数選択: 選択はファイルに入らず、元に戻しや票の切り替えで残らない', () => {
+    openBoard();
+    const list = three(), [f, t] = list;
+    bkey('a', { ctrl: true });
+    ok(!JSON.stringify(D).includes('bMulti') && !('sel' in f), 'データに選択の印はない');
+    TB.click('[data-act="evNav"][data-d="1"]');
+    eq([S.bSel, multiSel(), selected()], [null, null, []], '別の票では何も選ばれていない');
+    TB.click('[data-act="evNav"][data-d="-1"]');
+    eq(selected(), [], '戻っても選ばれていない');
+    selectEls([f.id, t.id]);
+    snap(); setF(f, 'deleted', true); renderBoard();
+    eq([selected(), multiSel(), S.bSel], [[t.id], null, t.id], '選んだ物が消えたら、残りだけになる');
+    bkey('a', { ctrl: true });
+    TB.click('[data-act="tool"][data-t="frame"]');
+    return sleep(0).then(() => { eq([selected().length, multiSel()], [1, null], '新しく置いた物だけが選ばれる'); });
+  });
+
+  test('複数選択: 合わせるときは、まとめて動かした値が要素ごとに残る', () => {
+    openBoard();
+    const [f, t] = three();
+    const base = JSON.parse(JSON.stringify(D));
+    selectEls([f.id, t.id]); dragEl(t.id, 40, 40);
+    const theirs = JSON.parse(JSON.stringify(base));
+    const tf = theirs.elements.find(e => e.id === f.id);
+    tf.color = 'yellow'; tf.ts.color = tf.updatedAt = Date.now() + 1000;
+    const st = mergeInto(D, theirs);
+    render();
+    const mf = getEl(f.id), mt = getEl(t.id);
+    eq([mf.x, mf.y, mf.color, mt.x, mt.y], [140, 140, 'yellow', 340, 160], '相手の色と、自分の位置の両方が残る');
+    eq(st.conflicts, 0, '競合にならない');
+  });
+
+  test('複数選択: 大きいものはクリップボードに載せず、このタブの中で貼り付ける', async () => {
+    openBoard();
+    snap();
+    const half = 'data:application/octet-stream;base64,' + 'A'.repeat(CLIP_MAX / 2 + 8);
+    const a = addEl(boardOwner(), 'file', { x: 0, y: 0, w: 200, data: half, name: 'a.bin', size: 1 }), b = addEl(boardOwner(), 'file', { x: 0, y: 100, w: 200, data: half, name: 'b.bin', size: 1 });
+    renderBoard(); selectEls([a.id, b.id]);
+    const dt = TB.clip(wrap(), 'copy', TB.dt());
+    ok(dt.getData(EL_MIME).length < 200, 'クリップボードには合い札だけ: ' + dt.getData(EL_MIME).length);
+    eq(dt.getData('text/plain'), 'a.bin\nb.bin', '文字は名前');
+    ok(TB.toasts().some(t => t.includes('このタブの中でだけ')), '知らせる');
+    TB.click('[data-act="evNav"][data-d="1"]');
+    TB.clip(wrap(), 'paste', dt); await sleep(0);
+    eq(els().map(e => [e.name, e.data.length, e.y - els()[0].y]), [['a.bin', half.length, 0], ['b.bin', half.length, 100]], '中身ごと貼れて、相対位置を保つ');
+    TB.clip(wrap(), 'paste', dt); await sleep(0);
+    eq(els().length, 4, 'もう一度貼れる');
+    const other = TB.dt({ extra: { [EL_MIME]: JSON.stringify({ tbClip: 'c_other' }) } });
+    TB.clip(wrap(), 'paste', other); await sleep(0);
+    eq(els().length, 4, '別のタブの合い札では貼らない');
+    ok(TB.toasts().some(t => t.includes('コピーしたタブの中でだけ')), '理由を出す');
+    // 切り取っても、持っておいた中身は残る
+    TB.click('[data-act="evNav"][data-d="-1"]');
+    selectEls([a.id, b.id]);
+    TB.clip(wrap(), 'cut', dt);
+    eq(els().length, 0, '切り取りで消える');
+    TB.clip(wrap(), 'paste', dt); await sleep(0);
+    eq(els().map(e => e.data.length), [half.length, half.length], '貼り戻せる');
+    S.elClip = null;
+  });
+
+  test('複数選択: クリップボードの変な中身でも壊れない', async () => {
+    openBoard();
+    const bad = [
+      [{ type: 'frame', x: '<img>', y: {}, w: 1, h: 1 }, { type: 'marker', x: 1e308, y: -1e308, w: 28, h: 28 }, { type: 'frame', x: -1e308, y: 1e308, w: 1, h: 1 }],
+      [null, 1, 'a', [], { type: 'nope', x: 1 }, { type: 'text', x: 1, y: 2, w: 3, text: '<img src=x onerror="window.__tbXss3=1">' }],
+      { tag: 'x', items: 3 }, { tbClip: 3 }, { items: [{ type: 'frame' }] },
+    ].map(b => JSON.stringify(b));
+    bad.push('[{"type":"frame","x":1,"y":2,"w":3,"h":4,"__proto__":{"z":9}},{"type":"frame","x":5,"y":6,"w":3,"h":4,"constructor":{}}]', '{', '[]');
+    for (const b of bad) {
+      TB.clip(wrap(), 'paste', TB.dt({ extra: { [EL_MIME]: b } })); await sleep(0);
+    }
+    ok(els().length >= 5, '形の合う物は入る: ' + els().length);
+    for (const e of els()) ok([e.x, e.y, e.z].every(Number.isFinite), '位置は数: ' + JSON.stringify([e.x, e.y, e.z]));
+    eq(window.__tbXss3, undefined, 'スクリプトは動かない');
+    bkey('a', { ctrl: true }); bkey('ArrowRight'); bkey('Delete');
+    eq(els().length, 0, '貼った物も選んで消せる');
+  });
+
   test('ボード: 要素の文字も HTML として解釈されない', async () => {
     openBoard();
     snap();

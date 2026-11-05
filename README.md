@@ -39,7 +39,7 @@ The UI is in English or Japanese. It follows the browser language, and "⋯ → 
 - **File size**: many images make a large file. When it no longer fits in an e-mail, hand it over through a shared folder. For big logs or videos, write the path as text instead. On a PC with 8 GB of memory, stay under about 1 GB for image-heavy tests and about 300,000 rows for row-heavy ones.
 - **Moving to a new version**: a test file carries the app inside, so it keeps running the version it was saved with. To move it to a new version, open the new `testbook.html`, choose the test file with "Open", and save. Files saved with version 0.1 or later will keep opening in later versions.
 - **Files from others**: a test file carries the app inside, so opening one by double-click runs whatever app it carries. For a file whose origin you are unsure of, open your own `testbook.html` and bring the file in with "Import" instead: data imported that way is checked and cannot run script.
-- **Not yet**: board zoom, selecting several board elements at once, and importing spreadsheet files directly (copy the table and press `Ctrl+V` instead).
+- **Not yet**: board zoom and importing spreadsheet files directly (copy the table and press `Ctrl+V` instead).
 
 ## Guide
 
@@ -88,8 +88,9 @@ A free-form board, one per case per run. The "Evidence" column of the table show
   - A frame can be filled black or white to hide personal data in a screenshot.
   - A selected arrow or line shows handles at both ends to change its direction and length (`Shift` for horizontal or vertical).
 - Drag to move, drag the bottom-right corner to resize. `Delete` removes, `Ctrl+D` duplicates. Moving an image also moves the frames, markers, arrows and text placed on top of it.
+- Several elements can be selected. `Shift`- or `Ctrl`-click adds or removes one, dragging from an empty spot selects the elements fully inside the box, and `Ctrl+A` selects all. The selection moves, copies, cuts, pastes, duplicates and deletes together, keeping its layout, and one `Ctrl+Z` undoes it. Resizing, text editing and per-type settings are not available while several are selected.
 - ◀ ▶ move to the previous or next case. When the table is filtered (only NG, only rows without evidence, and so on) they move within that list.
-- Selected elements can be copied or cut with `Ctrl+C` / `Ctrl+X` and pasted into another board, a free sheet, or another file open in the same browser.
+- Selected elements can be copied or cut with `Ctrl+C` / `Ctrl+X` and pasted into another board, a free sheet, or another file open in the same browser. Above about 32 MB in total (many images), the selection is too large for the clipboard and can only be pasted in the tab it was copied from.
 - `Esc` with nothing selected returns to the table. The top bar shows the case and lets you edit result, tester, date and remark; "Hide item details" collapses it.
 
 ### Summary and reports
@@ -148,8 +149,11 @@ On a Mac, press `⌘` instead of `Ctrl`.
 | `Ctrl+C` / `Ctrl+X` | Copy or cut the selected elements |
 | `Delete` / `Ctrl+D` | Delete or duplicate the selected elements |
 | Arrow keys | Move the selected elements (further with `Shift`) |
-| Drag with `Shift` | Keep an arrow or line horizontal or vertical |
-| `Esc` | Back to the table when nothing is selected |
+| Click with `Shift` / `Ctrl` | Add an element to the selection, or remove it |
+| Drag from an empty spot | Select the elements fully inside the box (with `Shift` / `Ctrl`, add them) |
+| `Ctrl+A` | Select all elements |
+| Drag a line's end with `Shift` | Keep an arrow or line horizontal or vertical |
+| `Esc` | Clear the selection; with nothing selected, back to the table |
 
 **Everywhere**
 
@@ -245,7 +249,7 @@ bash test/run.sh                                          macOS / Linux
 ```
 
 - `-Filter マージ` (`--filter マージ`) runs only the tests whose name contains the text (test names are in Japanese). `-Show` (`--show`) opens a visible browser with the developer tools. `-Browser edge` or `TB_BROWSER=path` picks the browser.
-- When everything passes it prints `307 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
+- When everything passes it prints `321 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
 - `-Update` (`--update`) rewrites the golden files in `test\golden\` and the files in `samples\` after an intentional change; `git diff` then shows what changed.
 
 #### How it works

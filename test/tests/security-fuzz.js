@@ -67,6 +67,16 @@
           if (e.type === 'text' || e.type === 'table') await step('要素の編集', () => { startBoardEdit(e.id, e.type === 'table' ? [0, 0] : undefined); commitBoardEdit(); });
           if (e.type === 'image') await step('拡大', () => { lightbox(e); scan('拡大'); const lb = document.querySelector('.lightbox'); if (lb) TB.click(lb); });
         }
+        await step('複数選択', () => {
+          selectEls(elementsOf(boardOwner()).map(e => e.id));
+          moveSel(8, 8); undo();
+          const dt = new DataTransfer();
+          selectEls(elementsOf(boardOwner()).map(e => e.id));
+          if (copyElement(dt, false) && pasteElements(S.elClip)) undo();
+          selectEls(elementsOf(boardOwner()).map(e => e.id));
+          actions.elDup(); undo();
+          selectEl(null);
+        });
         await step('票を閉じる', () => closeEvidence());
       }
       await step('集計', () => actions.summary());
