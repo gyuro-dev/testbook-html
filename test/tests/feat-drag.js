@@ -201,4 +201,66 @@
     loadDoc(TB.clone(mine)); mergeInto(D, untouched); render();
     eq(runs().map(r => r.name), ['1回目'], 'ほかの人が何もしていなければ消えたまま');
   });
+
+  /* 見出しに乗ったとき。:hover は合成イベントでは付かないので、アプリの :hover の規則を .tbhov に写した規則を
+   * すぐ後ろに足し、見出しに tbhov を付けて乗った状態にする（詳細度も順番も同じなので、本物の :hover と同じに効く）。
+   * どこが押せるかは elementFromPoint で決める（本物のマウスと同じく、その座標で一番上にある要素に届く）。 */
+  const withHover = async fn => {
+    const sh = [...document.styleSheets].find(s => [...s.cssRules].some(r => r.selectorText === '.grid th:hover'));
+    for (let i = sh.cssRules.length - 1; i >= 0; i--) {
+      const r = sh.cssRules[i];
+      if (r.selectorText && r.selectorText.includes(':hover')) sh.insertRule(`${r.selectorText.replaceAll(':hover', '.tbhov')}{${r.style.cssText}}`, i + 1);
+    }
+    try { await fn(); } finally {
+      for (let i = sh.cssRules.length - 1; i >= 0; i--) if ((sh.cssRules[i].selectorText || '').includes('.tbhov')) sh.deleteRule(i);
+      document.querySelector('#gridwrap').scrollLeft = 0;
+    }
+  };
+
+  test('固定列: 横にスクロールして固定列の下に一部隠れた見出しに乗っても、固定列の見出しは隠れない。その列の＋と幅のつかみは押せる', () => withHover(() => {
+    rows('a');
+    const g = document.querySelector('#gridwrap'), box = el => el.getBoundingClientRect();
+    const at = (x, y) => document.elementFromPoint(x, y);
+    const fzl = () => document.querySelector('#grid th.fzl');
+    const fzRight = box(fzl()).right;
+    // 固定していない最初の列を、左の 60px だけ残して固定列の下に隠す
+    const name = [...document.querySelectorAll('#grid th[data-cid]')].map(t => colById(t.dataset.cid)).find(c => !th(c.name).classList.contains('fz') && c.w >= 150).name;
+    const s = Math.round(box(th(name)).left - fzRight + col(name).w - 60);
+    g.scrollLeft = s;
+    eq(g.scrollLeft, s, `${name} が固定列の下に入るまでスクロールできる`);
+    const hover = t => { t.classList.add('tbhov'); return t; };
+    const t = hover(th(name)), h = box(t), y = (h.top + h.bottom) / 2;
+    ok(h.left < fzRight - 50 && h.right > fzRight + 50, `${name} は固定列の下に一部隠れている`);
+    ok(getComputedStyle(t.querySelector('.ins-c')).display !== 'none', '乗った状態になっている（＋が出る）');
+    for (const x of [fzRight - 3, (Math.max(h.left, 0) + fzRight) / 2]) {
+      const el = at(x, y);
+      ok(el && el.closest('th.fz') && !t.contains(el), `固定列の見出しの上 (${x}, ${y}) は固定列の見出しのまま（当たったのは ${el && el.closest('th') && el.closest('th').textContent}）`);
+    }
+    ok(t.contains(at(fzRight + 20, y)), '見えている所は乗った見出しに当たる');
+
+    // ＋: 見えている所で押せて、右に列が入る
+    const plus = t.querySelector('.ins-c'), p = box(plus), n = names().length, j = names().indexOf(name);
+    ok(at(p.left + 9, p.top + 9) === plus, `＋を押せる（当たったのは ${at(p.left + 9, p.top + 9) && at(p.left + 9, p.top + 9).className}）`);
+    TB.click(at(p.left + 9, p.top + 9));
+    eq(names().length, n + 1, '列が増える');
+    eq(sheetCols(curSheet())[j + 1].type, 'text', `${name} の右に入る`);
+    undo(); render();
+    g.scrollLeft = s;
+
+    // 幅のつかみ: ＋にかからない上の端をつかんで、幅を変えられる
+    const t2 = hover(th(name)), grip = t2.querySelector('.colrs'), r = box(grip), x = r.left + 3.5, yy = r.top + 2, w0 = col(name).w;
+    ok(at(x, yy) === grip, `つかみを押せる（当たったのは ${at(x, yy) && at(x, yy).className}）`);
+    mouse('mousedown', at(x, yy), x, yy, 1);
+    mouse('mousemove', null, x + 20, yy, 1);
+    mouse('mouseup', null, x + 20, yy, 0);
+    eq(col(name).w, w0 + 20, '幅が変わる');
+    g.scrollLeft = s;
+
+    // 固定列の見出しに乗ったときは、その＋がすぐ右の見出し（固定列でも、固定していない列でも）より上に出る
+    for (const f of document.querySelectorAll('#grid th.fz[data-cid]')) {
+      const fp = hover(f).querySelector('.ins-c'), q = box(fp);
+      ok(at(q.left + 9, q.top + 9) === fp, `固定列 ${f.textContent} の＋を押せる（当たったのは ${at(q.left + 9, q.top + 9) && at(q.left + 9, q.top + 9).className}）`);
+      f.classList.remove('tbhov');
+    }
+  }));
 })();

@@ -19,6 +19,7 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 ### Fixed
 
 - Setting results or pasting testers on many rows no longer freezes the page when those rows' results had been removed (for example after `Ctrl+Z`, or in a file saved after removing them). Each row rebuilt every index; at 500,000 rows, 500 rows took about 100 s and now take 10 ms.
+- After scrolling sideways, pointing at a column header that is partly hidden under the frozen columns no longer draws it over the frozen headers. The frozen headers stay on top, and the visible part of the header still shows its "＋" and resize handle.
 
 ## [0.2.5] - 2026-11-04
 
