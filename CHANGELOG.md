@@ -11,6 +11,8 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 - Numbers in the "Summary" tab are clickable. A card or a count opens the table narrowed to those rows, and a sheet or group name opens that sheet or group. Earlier search terms and filters are cleared and folded groups are opened, so the rows match the number.
 - While searching or filtering, the toolbar shows how many rows are visible ("12 / 150"). When nothing matches, a "Clear filters" button removes the search term and all filters at once.
 - Tooltips explain what you can do with: not-run results in the table, the evidence "＋", row numbers, column headers, the result buttons in the detail panel and "＋ Frame" (red frames and black or white fills). The tooltips on "Open" and "Import" now say that Open closes the current file and Import merges into it.
+- Evidence boards and free sheets can now select several elements at once: `Shift` or `Ctrl`+click adds or removes one, dragging from an empty spot selects the elements fully inside the box, `Ctrl+A` selects all, and `Esc` clears. The selection moves with the mouse or arrow keys, and copies, cuts, pastes, duplicates, deletes and comes to the front together, keeping its layout and stacking order. One `Ctrl+Z` undoes the whole operation. The selection is not saved, and files keep the same format.
+- Above about 32 MB in total, copied elements stay in the tab instead of going on the clipboard, because Chrome silently returns nothing when a page reads back very large clipboard data. A message says so when you copy.
 
 ### Changed
 

@@ -199,6 +199,8 @@ body.dragcol,body.dragcol *{cursor:grabbing!important}
 .el.sel{outline:2px solid var(--accent);outline-offset:3px}
 .rh{position:absolute;right:-8px;bottom:-8px;width:12px;height:12px;background:var(--accent);border:2px solid var(--panel);border-radius:3px;cursor:nwse-resize;display:none;pointer-events:auto}
 .el.sel .rh{display:block}
+.el.msel .rh{display:none}
+.marquee{position:absolute;z-index:100001;border:1px solid var(--accent);background:var(--accent-weak);opacity:.6;pointer-events:none}
 .tx{white-space:pre-wrap;word-break:break-word;padding:4px 6px;font-size:14px;line-height:1.6;min-height:28px;cursor:move}
 .tx.title{font-size:22px;font-weight:700;line-height:1.4}
 .tx.log,.tx-ed.log{font:12px/1.5 Consolas,"BIZ UDGothic",monospace;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
@@ -620,6 +622,9 @@ const EN = {
   '前回の結果をそのまま引き継ぐ': 'Copy all results from the previous run',
   '前回（{0}）は{1}': 'Previous run ({0}): {1}',
   '最前面へ': 'Bring to front',
+  '{0} 個を選択中': '{0} selected',
+  '選んだ要素が大きいので、このタブの中でだけ貼り付けられます': 'The selected elements are large, so they can only be pasted in this tab',
+  '大きな要素は、コピーしたタブの中でだけ貼り付けられます': 'Large elements can only be pasted in the tab they were copied from',
   '印刷': 'Print',
   '取り消し線（Ctrl+5）': 'Strikethrough (Ctrl+5)',
   '取り込み': 'Import',
@@ -949,7 +954,7 @@ const S = {
   auto: true, lastEdit: 0, editSeq: 0, draftSeq: 0, saving: false, autoSavedAt: null, docMax: 0,
   cf: {}, cfVer: 0, fold: {}, foldVer: 0, sort: null, sortVer: 0,
   pane: true, paneItem: null, ver: 0, colVer: 0, ordVer: 0, ar: 0, ac: 1, fen: null, rowIdx: new Map(), dirtyRows: new Set(), gridSig: "", w0: 0, w1: 0, rh: new Map(), headH: 31, layoutKeys: new Map(), layoutRun: null, lvCols: [], drag: null,
-  boardItem: null, bSel: null, bEdit: null, bCell: null, bPtr: null, hcache: new Map(),
+  boardItem: null, bSel: null, bMulti: null, bEdit: null, bCell: null, bPtr: null, hcache: new Map(),
 };
 
 /* ---------- 小さな道具 ---------- */
@@ -3078,6 +3083,7 @@ function renderBoard() {
   if (!b) return;
   buildIndex();
   const owner = boardOwner(), els = elementsOf(owner);
+  if (S.bMulti) pruneMulti(els);
   if (S.bSel && !els.some(e => e.id === S.bSel)) S.bSel = null;
   b.innerHTML = els.map(e => elHtml(e, true)).join('') + (els.length ? '' :
     `<div class="board-hint">${_t('ここには何でも自由に置けます。<br><b>Ctrl+V</b> でスクリーンショット・文字・表を貼り付け<br>何もないところをダブルクリックして文字を入力<br>ファイルはドラッグ＆ドロップ、枠や表は上のボタンから置けます')}</div>`);
@@ -3097,7 +3103,7 @@ function sizeBoard() {
 }
 function autosize(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
 function elHtml(e, interactive) {
-  const sel = interactive && S.bSel === e.id, editing = interactive && S.bEdit === e.id;
+  const multi = interactive && S.bMulti, sel = multi ? multi.has(e.id) : interactive && S.bSel === e.id, editing = interactive && S.bEdit === e.id;
   const fixedH = e.type === 'image' || e.type === 'frame' || e.type === 'marker';
   let st = `left:${e.x}px;top:${e.y}px;width:${e.w}px;${fixedH ? `height:${e.h}px;` : ''}z-index:${e.z || 1}`;
   let inner = '', cls = '';
@@ -3125,11 +3131,11 @@ function elHtml(e, interactive) {
       st = `left:${b.x - P}px;top:${b.y - P}px;width:${W}px;height:${H}px;z-index:${e.z || 1}`;
       inner = `<svg width="${W}" height="${H}"><defs><marker id="${mid}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M0,0L10,5L0,10z" style="fill:${col}"/></marker></defs>` +
         `<line class="hit" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><line class="vis" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="stroke:${col}"${e.arrow ? ` marker-end="url(#${mid})"` : ''}/></svg>` +
-        (sel ? `<span class="lh" data-end="1" style="left:${x1 - 7}px;top:${y1 - 7}px"></span><span class="lh" data-end="2" style="left:${x2 - 7}px;top:${y2 - 7}px"></span>` : '');
+        (sel && !multi ? `<span class="lh" data-end="1" style="left:${x1 - 7}px;top:${y1 - 7}px"></span><span class="lh" data-end="2" style="left:${x2 - 7}px;top:${y2 - 7}px"></span>` : '');
       break;
     }
   }
-  return `<div class="el el-${e.type}${cls}${sel ? ' sel' : ''}" data-eid="${e.id}" style="${st}">${inner}${interactive && e.type !== 'line' && e.type !== 'marker' ? '<span class="rh"></span>' : ''}</div>`;
+  return `<div class="el el-${e.type}${cls}${sel ? (multi ? ' sel msel' : ' sel') : ''}" data-eid="${e.id}" style="${st}">${inner}${interactive && e.type !== 'line' && e.type !== 'marker' ? '<span class="rh"></span>' : ''}</div>`;
 }
 function tableHtml(e, editing) {
   const cells = e.cells || [['']];
@@ -3153,6 +3159,15 @@ function renderSelTb() {
   const old = b.querySelector('.seltb'); if (old) old.remove();
   const e = S.bSel && getEl(S.bSel);
   if (!e) return;
+  if (multiSel()) {
+    // 複数を選んでいるときは、全部に同じ意味で効く操作だけを出す
+    const bar = document.createElement('div');
+    bar.className = 'seltb';
+    bar.innerHTML = `<span class="muted" style="font-size:11px;align-self:center;padding:0 4px;white-space:nowrap">${_t('{0} 個を選択中', S.bMulti.size)}</span><span style="width:1px;background:var(--line2)"></span>${selTbCommon()}`;
+    b.appendChild(bar);
+    positionSelTb();
+    return;
+  }
   if (S.bEdit) {
     // 文字の箱を編集しているあいだは、選んだ文字に付ける書式のボタンを出す
     if (e.type !== 'text' || S.bEdit !== e.id) return;
@@ -3182,19 +3197,20 @@ function renderSelTb() {
   if (e.type === 'metric') extra = `<select id="metricRun">${runs().map(r => `<option value="${r.id}"${r.id === e.run ? ' selected' : ''}>${esc(dn(r.name))}</option>`).join('')}</select>`;
   const tb = document.createElement('div');
   tb.className = 'seltb';
-  tb.innerHTML = `${extra}${extra ? '<span style="width:1px;background:var(--line2)"></span>' : ''}<button data-act="elFront" title="${_t('最前面へ')}">${_t('最前面へ')}</button><button data-act="elDup" title="Ctrl+D">${_t('複製')}</button><button data-act="elDel" title="Delete" style="color:var(--ng)">${_t('削除')}</button>`;
+  tb.innerHTML = `${extra}${extra ? '<span style="width:1px;background:var(--line2)"></span>' : ''}${selTbCommon()}`;
   b.appendChild(tb);
   positionSelTb();
 }
+const selTbCommon = () => `<button data-act="elFront" title="${_t('最前面へ')}">${_t('最前面へ')}</button><button data-act="elDup" title="Ctrl+D">${_t('複製')}</button><button data-act="elDel" title="Delete" style="color:var(--ng)">${_t('削除')}</button>`;
 function positionSelTb() {
   const tb = $('#board .seltb'), e = S.bSel && getEl(S.bSel);
   if (!tb || !e) return;
-  const bx = elBox(e);
+  const bx = multiSel() ? boxOf(selList()) : elBox(e);
   tb.style.left = bx.x + 'px';
   tb.style.top = (bx.y >= 44 ? bx.y - 40 : bx.y + bx.h + 10) + 'px';
 }
 function addEl(owner, type, props) {
-  const e = { id: uid('e_'), owner, type, z: maxZ(owner) + 1, by: S.me, at: now(), ts: {}, updatedAt: now(), ...props };
+  const e = { id: uid('e_'), owner, type, z: props.z || maxZ(owner) + 1, by: S.me, at: now(), ts: {}, updatedAt: now(), ...props };
   D.elements.push(e); created(e, 'elements');
   return e;
 }
@@ -3211,11 +3227,100 @@ function boardPoint(ev) {
   return { x: Math.max(0, ev.clientX - r.left), y: Math.max(0, ev.clientY - r.top) };
 }
 function selectEl(id) {
-  const prev = S.bSel && getEl(S.bSel);
-  S.bSel = id;
+  const prev = S.bSel && getEl(S.bSel), wasMulti = multiSel();
+  S.bSel = id; S.bMulti = null;
   if ((prev && prev.type === 'line') || (id && getEl(id).type === 'line')) { renderBoard(); return; }  // 線のつかみを出し入れする
   renderSelTb();
   for (const d of $('#board').querySelectorAll('.el')) d.classList.toggle('sel', d.dataset.eid === id);
+  if (wasMulti) for (const d of $('#board').querySelectorAll('.el.msel')) d.classList.remove('msel');
+}
+/* 複数の要素の選択。S.bSel は「主に選んでいる1つ」のまま残し、2つ以上選んでいるときだけ、選んだ物全部の ID を S.bMulti（Set）に持つ。
+ * 新しく置いた物を選ぶなど S.bSel だけを書き換える所が多いので、S.bSel が S.bMulti に入っていないときは複数選択は終わっている扱いにする。
+ * 選択は画面の状態だけで、ファイルには入らない。 */
+const multiSel = () => (S.bMulti && S.bMulti.has(S.bSel) ? S.bMulti : null);
+// 選んでいる要素（奥から手前の順。コピーや複製で重なりの順を保つ）
+function selList() {
+  const m = multiSel();
+  if (m) return elementsOf(boardOwner()).filter(e => m.has(e.id));
+  const e = S.bSel && getEl(S.bSel);
+  return e ? [e] : [];
+}
+function boxOf(list) {
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  for (const e of list) { const b = elBox(e); x1 = Math.min(x1, b.x); y1 = Math.min(y1, b.y); x2 = Math.max(x2, b.x + b.w); y2 = Math.max(y2, b.y + b.h); }
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+// 描き直す前に、消えた物を選択から外す
+function pruneMulti(els) {
+  if (S.bEdit || !S.bMulti.has(S.bSel)) { S.bMulti = null; return; }
+  const live = els.filter(e => S.bMulti.has(e.id));
+  S.bMulti = live.length > 1 ? new Set(live.map(e => e.id)) : null;
+  if (!live.some(e => e.id === S.bSel)) S.bSel = live.length ? live[live.length - 1].id : null;
+}
+function selectEls(ids, primary) {
+  if (ids.length < 2) { selectEl(ids[0] || null); return; }
+  const prev = S.bSel && getEl(S.bSel), wasLine = prev && prev.type === 'line' && !multiSel();
+  S.bMulti = new Set(ids); S.bSel = primary && S.bMulti.has(primary) ? primary : ids[ids.length - 1];
+  if (wasLine) { renderBoard(); return; }  // 線のつかみを消す
+  renderSelTb();
+  for (const d of $('#board').querySelectorAll('.el')) { const on = S.bMulti.has(d.dataset.eid); d.classList.toggle('sel', on); d.classList.toggle('msel', on); }
+}
+const selIds = () => { const m = multiSel(); return m ? [...m] : S.bSel ? [S.bSel] : []; };
+// 新しく作った物を選ぶ（描くのは呼ぶ側）
+function selectMade(made) { S.bSel = made[made.length - 1].id; S.bMulti = made.length > 1 ? new Set(made.map(e => e.id)) : null; }
+// 選んでいれば外し、そうでなければ足す。足したら true を返す
+function toggleSel(id) {
+  const cur = selIds();
+  if (!cur.includes(id)) { selectEls([...cur, id], id); return true; }
+  selectEls(cur.filter(x => x !== id), S.bSel === id ? null : S.bSel);
+  return false;
+}
+// 何もないところからのドラッグで範囲を選ぶ（全体が入った要素を選ぶ）。keep: それまでの選択に足す
+function startMarquee(ev, keep) {
+  const b = $('#board'), wrap = $('#boardwrap'), s = boardPoint(ev);
+  let box = null, r = null;
+  const mm = m => {
+    const p = boardPoint(m);
+    if (!box) {
+      if (Math.abs(p.x - s.x) + Math.abs(p.y - s.y) < 3) return;
+      box = document.createElement('div'); box.className = 'marquee'; b.appendChild(box);
+    }
+    // 外へ出たら、その向きへスクロールする
+    const w = wrap.getBoundingClientRect();
+    wrap.scrollBy(m.clientX < w.left ? -24 : m.clientX > w.right ? 24 : 0, m.clientY < w.top ? -24 : m.clientY > w.bottom ? 24 : 0);
+    const x = Math.min(p.x, b.clientWidth), y = Math.min(p.y, b.clientHeight);
+    r = { x: Math.min(s.x, x), y: Math.min(s.y, y), w: Math.abs(x - s.x), h: Math.abs(y - s.y) };
+    box.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
+  };
+  const mu = () => {
+    removeEventListener('mousemove', mm); removeEventListener('mouseup', mu);
+    if (!box) return;
+    box.remove();
+    const hit = elementsOf(boardOwner()).filter(e => { const x = elBox(e); return x.x >= r.x && x.y >= r.y && x.x + x.w <= r.x + r.w && x.y + x.h <= r.y + r.h; }).map(e => e.id);
+    if (keep) { const cur = selIds(); selectEls([...cur, ...hit.filter(id => !cur.includes(id))]); }
+    else if (hit.length) selectEls(hit);
+  };
+  addEventListener('mousemove', mm); addEventListener('mouseup', mu);
+}
+// 選んだ物をまとめて動かす（相対位置を保つ。どれも左上にはみ出さない）
+function moveSel(dx, dy) {
+  const list = selList(), b = boxOf(list);
+  dx = Math.max(dx, -Math.max(0, b.x)); dy = Math.max(dy, -Math.max(0, b.y));
+  if (!dx && !dy) return;
+  snap();
+  const doms = elDoms();
+  for (const e of list) {
+    if (dx) setF(e, 'x', e.x + dx);
+    if (dy) setF(e, 'y', e.y + dy);
+    placeDom(doms.get(e.id), e);
+  }
+  sizeBoard(); positionSelTb();
+}
+function elDoms() { const m = new Map(); for (const d of $('#board').querySelectorAll('.el')) m.set(d.dataset.eid, d); return m; }
+function placeDom(dom, e) {
+  if (!dom) return;
+  const b = e.type === 'line' ? elBox(e) : e, p = e.type === 'line' ? 12 : 0;
+  dom.style.left = b.x - p + 'px'; dom.style.top = b.y - p + 'px';
 }
 function startBoardEdit(id, cell, noSnap) {
   const e = getEl(id);
@@ -3249,30 +3354,42 @@ function commitBoardEdit() {
 function riders(img) {
   if (img.type !== 'image') return [];
   const b = elBox(img);
-  return elementsOf(img.owner).filter(e => e !== img && e.type !== 'image' && (e.z || 0) > (img.z || 0) && (() => { const x = elBox(e), cx = x.x + x.w / 2, cy = x.y + x.h / 2; return cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h; })());
+  return elementsOf(img.owner).filter(e => e !== img && e.type !== 'image' && (e.z || 0) > (img.z || 0) && onImage(e, b));
 }
-// mode: move（動かす） / resize（右下の角で大きさ） / p1・p2（線の始点・終点）
-function startDrag(ev, e, mode) {
+function onImage(e, b) { const x = elBox(e), cx = x.x + x.w / 2, cy = x.y + x.h / 2; return cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h; }
+// 複数を動かすとき、一緒に動く物: 選んだ画像の上にある印のうち、選んでいないもの
+function ridersOf(list) {
+  const imgs = list.filter(e => e.type === 'image').map(img => ({ z: img.z || 0, b: elBox(img) }));
+  if (!imgs.length) return [];
+  const chosen = new Set(list);
+  return elementsOf(list[0].owner).filter(e => e.type !== 'image' && !chosen.has(e) && imgs.some(i => (e.z || 0) > i.z && onImage(e, i.b)));
+}
+// mode: move（動かす） / resize（右下の角で大きさ） / p1・p2（線の始点・終点）。onClick: 動かさずに離したときに呼ぶ
+function startDrag(ev, e, mode, onClick) {
   ev.preventDefault();
   const sx = ev.clientX, sy = ev.clientY, o = { x: e.x, y: e.y, w: e.w, h: e.h };
   let dom = $(`#board .el[data-eid="${e.id}"]`);
   let moved = false;
   const redraw = () => { const t = document.createElement('div'); t.innerHTML = elHtml(e, true); const n = t.firstChild; dom.replaceWith(n); dom = n; };
-  const group = mode === 'move' ? riders(e).map(r => ({ e: r, x: r.x, y: r.y, dom: $(`#board .el[data-eid="${r.id}"]`) })) : [];
+  const list = mode === 'move' && multiSel() ? selList() : null;
+  const doms = list && elDoms();
+  const group = !list ? (mode === 'move' ? riders(e).map(r => ({ e: r, x: r.x, y: r.y, dom: $(`#board .el[data-eid="${r.id}"]`) })) : [])
+    : [...list.filter(x => x !== e), ...ridersOf(list)].map(r => ({ e: r, x: r.x, y: r.y, dom: doms.get(r.id) }));
+  // まとめて動かすときに左上へ動ける量（いちばん左上の物が端に着くまで）
+  const room = list && boxOf(list);
   const mm = m => {
     const dx = m.clientX - sx, dy = m.clientY - sy;
     if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
     if (!moved) { snap(); moved = true; }
     if (mode === 'move') {
       e.x = Math.max(0, r4(o.x + dx)); e.y = Math.max(0, r4(o.y + dy));
-      if (e.type === 'line') {
-        // 線は全体が左上にはみ出さないように
-        e.x = Math.max(e.x, -Math.min(0, e.w)); e.y = Math.max(e.y, -Math.min(0, e.h));
-        const b = elBox(e); dom.style.left = b.x - 12 + 'px'; dom.style.top = b.y - 12 + 'px';
-      } else { dom.style.left = e.x + 'px'; dom.style.top = e.y + 'px'; }
+      // 線は全体が左上にはみ出さないように
+      if (e.type === 'line') { e.x = Math.max(e.x, -Math.min(0, e.w)); e.y = Math.max(e.y, -Math.min(0, e.h)); }
+      if (room) { e.x = Math.max(e.x, o.x - Math.max(0, room.x)); e.y = Math.max(e.y, o.y - Math.max(0, room.y)); }
+      placeDom(dom, e);
       // 画像の上の印も同じだけ動かす
       const gx = e.x - o.x, gy = e.y - o.y;
-      for (const g of group) { g.e.x = g.x + gx; g.e.y = g.y + gy; if (g.dom) { const b = elBox(g.e), p = g.e.type === 'line' ? 12 : 0; g.dom.style.left = b.x - p + 'px'; g.dom.style.top = b.y - p + 'px'; } }
+      for (const g of group) { g.e.x = g.x + gx; g.e.y = g.y + gy; placeDom(g.dom, g.e); }
     } else if (mode === 'p1' || mode === 'p2') {
       // Shift を押しながらなら、水平・垂直にそろえる
       if (mode === 'p1') {
@@ -3296,7 +3413,7 @@ function startDrag(ev, e, mode) {
   };
   const mu = () => {
     removeEventListener('mousemove', mm); removeEventListener('mouseup', mu);
-    if (!moved) return;
+    if (!moved) { if (onClick) onClick(); return; }
     for (const k of ['x', 'y', 'w', 'h']) if (e[k] !== o[k]) { const v = e[k]; e[k] = o[k]; setF(e, k, v); }
     for (const g of group) for (const k of ['x', 'y']) if (g.e[k] !== g[k]) { const v = g.e[k]; g.e[k] = g[k]; setF(g.e, k, v); }
     S.hcache.set(e.id, dom.offsetHeight);
@@ -3312,9 +3429,19 @@ function onBoardMouseDown(ev) {
   const node = ev.target.closest('.el'), id = node && node.dataset.eid;
   if (S.bEdit) commitBoardEdit();
   $('#boardwrap').focus({ preventScroll: true });
-  if (!id || !getEl(id) || getEl(id).deleted) { if (S.bSel) selectEl(null); ev.preventDefault(); return; }
-  if (S.bSel !== id) selectEl(id);
+  const add = ev.shiftKey || ev.ctrlKey || ev.metaKey;
+  if (!id || !getEl(id) || getEl(id).deleted) { if (S.bSel && !add) selectEl(null); ev.preventDefault(); startMarquee(ev, add); return; }
   const cl = ev.target.classList;
+  // つまみの上は別（線の端を Shift を押しながら動かすと、水平・垂直になる）
+  if (add && !cl.contains('rh') && !cl.contains('lh')) {
+    ev.preventDefault();
+    if (toggleSel(id)) startDrag(ev, getEl(id), 'move');
+    return;
+  }
+  // 選んだ物の1つを押したら、選択を保ったまま全部を動かす。動かさずに離したら、それだけを選ぶ
+  const m = multiSel();
+  if (m && m.has(id)) { S.bSel = id; startDrag(ev, getEl(id), 'move', () => selectEl(id)); return; }
+  if (S.bSel !== id) selectEl(id);
   startDrag(ev, getEl(id), cl.contains('rh') ? 'resize' : cl.contains('lh') ? 'p' + ev.target.dataset.end : 'move');
 }
 function onBoardDblClick(ev) {
@@ -3338,50 +3465,89 @@ function onBoardKey(ev) {
   // ここで受けると、Backspace で箱ごと消えたり、矢印で箱が動いたりする
   const tg = ev.target;
   if (tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.tagName === 'INPUT' || tg.isContentEditable || S.bEdit) return;
-  const e = S.bSel && getEl(S.bSel), mod = ev.ctrlKey || ev.metaKey;
+  const e = S.bSel && getEl(S.bSel), mod = ev.ctrlKey || ev.metaKey, multi = multiSel();
+  if (mod && ev.key.toLowerCase() === 'a') { ev.preventDefault(); selectEls(elementsOf(boardOwner()).map(x => x.id), S.bSel); return; }
   // 何も選んでいないときの Esc は、エビデンス票を閉じて表に戻る
   if (!e) { if (ev.key === 'Escape' && S.view === 'board') { ev.preventDefault(); closeEvidence(); } return; }
   const step = ev.shiftKey ? 16 : 1;
   const nudge = { ArrowUp: [0, -step], ArrowDown: [0, step], ArrowLeft: [-step, 0], ArrowRight: [step, 0] }[ev.key];
   if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); actions.elDel(); }
+  else if (nudge && multi) { ev.preventDefault(); moveSel(nudge[0], nudge[1]); }
   else if (nudge) { ev.preventDefault(); snap(); setF(e, 'x', Math.max(0, e.x + nudge[0])); setF(e, 'y', Math.max(0, e.y + nudge[1])); renderBoard(); }
-  else if (ev.key === 'Enter' || ev.key === 'F2') { ev.preventDefault(); startBoardEdit(e.id, e.type === 'table' ? [0, 0] : null); }
+  else if (ev.key === 'Enter' || ev.key === 'F2') { ev.preventDefault(); if (!multi) startBoardEdit(e.id, e.type === 'table' ? [0, 0] : null); }
   else if (ev.key === 'Escape') selectEl(null);
   else if (mod && ev.key.toLowerCase() === 'd') { ev.preventDefault(); actions.elDup(); }
-  else if (mod && ev.key.toLowerCase() === 'b' && e.type === 'text') { ev.preventDefault(); actions.elFmt({ dataset: { k: 'bold' } }); }
-  else if (mod && ev.key === '5' && e.type === 'text') { ev.preventDefault(); actions.elFmt({ dataset: { k: 'strike' } }); }
+  else if (mod && ev.key.toLowerCase() === 'b' && e.type === 'text' && !multi) { ev.preventDefault(); actions.elFmt({ dataset: { k: 'bold' } }); }
+  else if (mod && ev.key === '5' && e.type === 'text' && !multi) { ev.preventDefault(); actions.elFmt({ dataset: { k: 'strike' } }); }
 }
 /* ボードの要素のコピー・切り取り・貼り付け（Ctrl+C / Ctrl+X / Ctrl+V）。
  * 同じブラウザの中なら、別のエビデンス票や自由シート、別のファイルにも貼れる。ほかのアプリには文字だけが渡る。 */
 const EL_MIME = 'application/x-testbook-elements';
+// クリップボードに載せる大きさの上限（文字数）。Chrome は 128MB の独自形式を、書くときはエラーを出さないのに読むと空で返す（64MB までは読める。64MB で貼り付けに約 0.5 秒）。
+// 画像を百枚以上選んだときに黙って貼れなくならないよう、これを超えたらこのタブの中に持つ
+const CLIP_MAX = 32 * 1024 * 1024;
+const elPlain = e => e.type === 'text' ? (e.text || '') : e.type === 'table' ? (e.cells || []).map(r => r.join('\t')).join('\n') : e.name || '';
 function copyElement(cd, cut) {
-  const e = S.bSel && getEl(S.bSel);
-  if (!e || S.bEdit) return false;
-  const { id, ts, bt, updatedAt, owner, z, deleted, ...rest } = e;
-  const json = JSON.stringify([isBinary(e) ? { ...rest, data: elData(e) } : rest]);
-  cd.setData(EL_MIME, json);
-  cd.setData('text/plain', e.type === 'text' ? (e.text || '') : e.type === 'table' ? (e.cells || []).map(r => r.join('\t')).join('\n') : e.name || '');
-  S.elClip = json;
+  const list = selList();
+  if (!list.length || S.bEdit) return false;
+  let size = 0;
+  const items = list.map(e => {
+    const { id, ts, bt, updatedAt, owner, z, deleted, ...rest } = e;
+    if (!isBinary(e)) { size += (e.text || '').length; return rest; }
+    const data = elData(e);
+    size += data.length;
+    return { ...rest, data };
+  });
+  // 画像が多いと JSON の文字列の上限（約 512MB）も超えるので、先に大きさを見てから JSON にする
+  const json = size > CLIP_MAX ? null : JSON.stringify(items);
+  if (json && json.length <= CLIP_MAX) {
+    cd.setData(EL_MIME, json);
+    S.elClip = json;
+  } else {
+    // 大きいものはクリップボードに載せず、このタブの中に持っておく（CLIP_MAX の説明を参照）。クリップボードには合い札だけを置く
+    const tag = uid('c_');
+    S.elClip = { tag, items: items.map(cloneClip) };
+    cd.setData(EL_MIME, JSON.stringify({ tbClip: tag }));
+    toast(_t('選んだ要素が大きいので、このタブの中でだけ貼り付けられます'));
+  }
+  cd.setData('text/plain', list.map(elPlain).join('\n'));
   if (cut) actions.elDel();
   return true;
 }
-function pasteElements(json) {
-  let list;
-  try { list = JSON.parse(json); } catch { return false; }
+// 画像の中身は JSON を通さない（大きいので）。それ以外は、貼った物どうしで表の中身などを共有しないように複製する
+function cloneClip(o) { const { data, ...rest } = o; return data === undefined ? clone(rest) : { ...clone(rest), data }; }
+function pasteElements(clip) {
+  let list = clip;
+  if (typeof clip === 'string') {
+    try { list = JSON.parse(clip); } catch { return false; }
+    if (list && list.tbClip) {
+      if (!S.elClip || S.elClip.tag !== list.tbClip) { toast(_t('大きな要素は、コピーしたタブの中でだけ貼り付けられます'), 'err'); return false; }
+      list = S.elClip;
+    }
+  }
+  if (list && list === S.elClip && list.items) list = list.items.map(cloneClip);
   if (!Array.isArray(list) || !list.length) return false;
   const owner = boardOwner(), p = nextPos(owner, true);
-  let last = null;
+  list = list.filter(o => o && typeof o === 'object');
+  // 2つ以上なら、全体の左上を置く場所に合わせて、相対位置を保つ
+  let ox = 0, oy = 0;
+  if (list.length > 1) {
+    ox = Infinity; oy = Infinity;
+    for (const o of list) { const lw = o.type === 'line' ? Math.min(0, num(o.w)) : 0, lh = o.type === 'line' ? Math.min(0, num(o.h)) : 0; ox = Math.min(ox, num(o.x) + lw); oy = Math.min(oy, num(o.y) + lh); }
+  }
+  const made = [];
+  let top = maxZ(owner);
   for (const o of list) {
     // クリップボードの中身もファイルと同じ検査を通す（ID や置き場所などは持ち込ませない）
-    if (!o || typeof o !== 'object') continue;
     const { id, ts, bt, updatedAt, deleted, z, ...rest } = o;
-    const props = { ...rest, owner, x: p.x, y: p.y, by: S.me, at: now() };
+    const props = { ...rest, owner, x: list.length > 1 ? p.x + num(o.x) - ox : p.x, y: list.length > 1 ? p.y + num(o.y) - oy : p.y, by: S.me, at: now() };
     if (!cleanEl(props)) continue;
-    if (!last) snap();
-    last = addEl(owner, props.type, props);
+    if (!made.length) snap();
+    props.z = ++top;
+    made.push(addEl(owner, props.type, props));
   }
-  if (!last) return false;
-  S.bSel = last.id; renderBoard();
+  if (!made.length) return false;
+  selectMade(made); renderBoard();
   return true;
 }
 function onBoardTextKey(ev) {
@@ -4630,15 +4796,18 @@ const actions = {
       : addEl(owner, 'metric', { x: p.x, y: p.y, w: 560, run: S.run });
     S.bSel = e.id; renderBoard();
   },
-  elDel() { const e = getEl(S.bSel); if (!e) return; snap(); setF(e, 'deleted', true); S.bSel = null; renderBoard(); },
+  elDel() { const list = selList(); if (!list.length) return; snap(); for (const e of list) setF(e, 'deleted', true); S.bSel = null; S.bMulti = null; renderBoard(); },
   elDup() {
-    const e = getEl(S.bSel); if (!e) return;
+    const list = selList(); if (!list.length) return;
     snap();
-    const { id, ts, bt, updatedAt, z, data, ...rest } = e;  // 画像の中身は JSON を通さない（大きいので）
-    const n = addEl(e.owner, e.type, { ...clone(rest), ...(isBinary(e) ? { data: elData(e) } : {}), x: e.x + 16, y: e.y + 16, by: S.me, at: now() });
-    S.bSel = n.id; renderBoard();
+    let top = maxZ(list[0].owner);
+    const made = list.map(e => {
+      const { id, ts, bt, updatedAt, z, data, ...rest } = e;  // 画像の中身は JSON を通さない（大きいので）
+      return addEl(e.owner, e.type, { ...clone(rest), ...(isBinary(e) ? { data: elData(e) } : {}), x: e.x + 16, y: e.y + 16, z: ++top, by: S.me, at: now() });
+    });
+    selectMade(made); renderBoard();
   },
-  elFront() { const e = getEl(S.bSel); if (!e) return; snap(); setF(e, 'z', maxZ(e.owner) + 1); renderBoard(); },
+  elFront() { const list = selList(); if (!list.length) return; snap(); let top = maxZ(list[0].owner); for (const e of list) setF(e, 'z', ++top); renderBoard(); },
   elStyle(btn) { const e = getEl(S.bSel); snap(); setF(e, 'style', btn.dataset.v); renderBoard(); },
   elColor(btn) { const e = getEl(S.bSel); snap(); setF(e, 'color', btn.dataset.v); renderBoard(); },
   elZoom() { lightbox(getEl(S.bSel)); },
