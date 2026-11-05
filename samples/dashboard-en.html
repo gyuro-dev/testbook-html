@@ -280,6 +280,9 @@ table.st{border-collapse:collapse;background:var(--panel);border:1px solid var(-
 .st tr.sub td:first-child{padding-left:28px;color:var(--muted)}
 .st td.ng{color:var(--ng);font-weight:600}
 .st td.pct{text-align:left;white-space:nowrap} .st .bar{width:120px;margin-right:8px;vertical-align:middle}
+.sgo{cursor:pointer}
+.card.sgo:hover,.card.sgo:focus-visible{border-color:var(--accent)}
+.st td.sgo:hover{color:var(--accent);text-decoration:underline}
 
 /* 消化の推移 */
 .trend{display:block;max-width:100%;margin:4px 0 10px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
@@ -491,7 +494,6 @@ const EN = {
   'ほかの人がこの{0}を削除しましたが、削除のあとで結果・エビデンス・内容の変更があったため、削除せずに残しています。': 'Someone else deleted this {0}, but results, evidence or content changed afterwards, so it was kept.',
   'ほかの人が保存した変更を取り込みました: {0}': 'Merged changes saved by others: {0}',
   'ほかの人のファイルと合わせたときに、同じ箇所が別々に直されていたものです。今は新しいほうの値を表示しています。どちらの値を使うか選んでください。': 'These places were edited differently in the file you merged. The newer value is in use now. Choose which to keep.',
-  'ほかの人のファイルの内容を取り込む': 'Merge another file into this one',
   'ほかの人の値にする': 'Use their value',
   'ほかの人の値（{0}）': 'Their value ({0})',
   'ほかの人の変更と競合した箇所': 'Where edits collided with others',
@@ -505,7 +507,18 @@ const EN = {
   'エビデンス票に追加しました': 'Added to the evidence board',
   'エビデンス票（{0}）': 'Evidence boards ({0})',
   'キャンセル': 'Cancel',
-  'クリックして列を設定': 'Click for column settings',
+  'クリックして列を設定（左右にドラッグで移動）': 'Click for column settings (drag left or right to move)',
+  'クリックで行を選択（選んだ行はドラッグか Alt+↑↓ で移動）': 'Click to select the row (move selected rows by dragging or with Alt+↑↓)',
+  'クリックまたは 1〜4 キーで結果を付ける': 'Click or press 1-4 to set the result',
+  'クリックでエビデンス票を開く（Ctrl+V でスクリーンショットを貼り付け）': 'Click to open the evidence board (Ctrl+V pastes a screenshot)',
+  '赤枠や、個人情報を隠す黒塗り・白塗りの枠を置きます': 'Add a red frame, or a black or white fill that hides personal information',
+  '表で {0} キーを押しても付けられます': 'You can also press {0} in the table',
+  'クリックで該当する行を表示': 'Click to show these rows',
+  'ほかのシートにも該当する行があります（{0} シート）': 'Other sheets also have matching rows ({0} sheets)',
+  '{0} / {1} 件を表示': 'Showing {0} of {1}',
+  '絞り込みを解除': 'Clear filters',
+  '別の試験ファイルに切り替える（今のファイルは閉じます）': 'Switch to another test file (closes this one)',
+  'ほかの人のファイルの内容を、今のファイルに合わせて1つにまとめる': 'Merge another file into this one',
   'コピーしました': 'Copied',
   'コピーできませんでした': 'Could not copy',
   'コメント': 'Comments',
@@ -593,7 +606,6 @@ const EN = {
   '列を追加': 'Add column',
   '別のファイルを開く': 'Open another file',
   '別の試験ファイルです': 'Different test file',
-  '別の試験ファイルを開く': 'Open another test file',
   '削除': 'Delete',
   '削除する': 'Delete',
   '前の実施回で NG': 'NG in previous run',
@@ -935,7 +947,7 @@ const S = {
   editing: false, q: '', vf: '', me: '', handle: null, dirty: false, savedAt: null, lastMod: 0,
   auto: true, lastEdit: 0, editSeq: 0, draftSeq: 0, saving: false, autoSavedAt: null, docMax: 0,
   cf: {}, cfVer: 0, fold: {}, foldVer: 0, sort: null, sortVer: 0,
-  pane: true, paneItem: null, ver: 0, ar: 0, ac: 1, fen: null, rowIdx: new Map(), dirtyRows: new Set(), gridSig: "", w0: 0, w1: 0, rh: new Map(), headH: 31, layoutKey: "", lvCols: [], drag: null,
+  pane: true, paneItem: null, ver: 0, colVer: 0, ordVer: 0, ar: 0, ac: 1, fen: null, rowIdx: new Map(), dirtyRows: new Set(), gridSig: "", w0: 0, w1: 0, rh: new Map(), headH: 31, layoutKeys: new Map(), layoutRun: null, lvCols: [], drag: null,
   boardItem: null, bSel: null, bEdit: null, bCell: null, bPtr: null, hcache: new Map(),
 };
 
@@ -1105,36 +1117,53 @@ function jsonOf(k, o) {
   return J(x);
 }
 // 保存するデータは小分けの文字列で作る。全体を1つの巨大な文字列にしないので、大きなファイルでもメモリを食いすぎない。
+// 128KB ほどたまるたびにバイト列（UTF-8）にして、文字列はすぐ手放す。文字列のまま持ち続けると、保存のあとで大きな GC が走って
+// 画面が一瞬止まる（50万行で 60ms ほど）。バイト列は JavaScript のヒープの外に置かれ、Blob に渡すときも変換がいらない。
+// parts.chars は文字数（読み込むときは1つの文字列になるので、大きさの上限はこの数で見る）
+const PART_CHARS = 1 << 17, PART_ENC = new TextEncoder();
+function jsonWriter() {
+  const parts = [];
+  let buf = [], len = 0;
+  parts.chars = 0;
+  const flush = () => { if (buf.length) { parts.push(PART_ENC.encode(buf.join(''))); buf = []; len = 0; } };
+  return { parts, flush, put(s) { buf.push(s); len += s.length; parts.chars += s.length; if (len >= PART_CHARS) flush(); } };
+}
 function jsonParts() {
-  const parts = [`{"format":"testbook","version":2,"meta":${J(D.meta)}`];
+  const w = jsonWriter();
+  w.put(`{"format":"testbook","version":2,"meta":${J(D.meta)}`);
   for (const k of COLLS) {
-    parts.push(`,"${k}":[`);
-    D[k].forEach((o, i) => parts.push((i ? ',' : '') + jsonOf(k, o)));
-    parts.push(']');
+    w.put(`,"${k}":[`);
+    const arr = D[k];
+    for (let i = 0; i < arr.length; i++) { if (i) w.put(','); w.put(jsonOf(k, arr[i])); }
+    w.put(']');
   }
-  parts.push('}');
-  return parts;
+  w.put('}');
+  w.flush();
+  return w.parts;
 }
 // 自動保存用: 同じものを少しずつ作り、途中で画面に制御を返す（何十万行あっても入力が止まらない）。
 // 作っている途中で編集が入ったら、古い内容を書かないように捨てる（null を返す）
 async function jsonPartsAsync() {
-  const seq = S.editSeq, parts = [`{"format":"testbook","version":2,"meta":${J(D.meta)}`];
+  const seq = S.editSeq, w = jsonWriter();
+  w.put(`{"format":"testbook","version":2,"meta":${J(D.meta)}`);
   let t0 = performance.now();
   for (const k of COLLS) {
-    parts.push(`,"${k}":[`);
+    w.put(`,"${k}":[`);
     const arr = D[k];
     for (let i = 0; i < arr.length; i++) {
-      parts.push((i ? ',' : '') + jsonOf(k, arr[i]));
+      if (i) w.put(',');
+      w.put(jsonOf(k, arr[i]));
       if ((i & 1023) === 1023 && performance.now() - t0 > 10) {
         await new Promise(r => setTimeout(r, 0));
         if (S.editSeq !== seq) return null;
         t0 = performance.now();
       }
     }
-    parts.push(']');
+    w.put(']');
   }
-  parts.push('}');
-  return parts;
+  w.put('}');
+  w.flush();
+  return w.parts;
 }
 // 起動したときに、データを抜いたこのファイル自身（アプリ本体）を覚えておき、保存のときにデータを挟んで書き出す
 let SHELL = null;
@@ -1152,8 +1181,6 @@ function captureShell() {
 // 保存するファイルの中身。画像は1枚ずつ Blob にしてから並べるので、全部を一度にメモリに載せない
 function fileBlob(parts = jsonParts()) {
   const head = SHELL[0].replace(/<title>[^<]*<\/title>/, () => `<title>${esc(D.meta.title)}</title>`);
-  let jsonLen = 0;
-  for (const p of parts) jsonLen += p.length;
   const blobs = [];
   for (const e of D.elements) {
     if (e.deleted || !isBinary(e)) continue;
@@ -1162,7 +1189,9 @@ function fileBlob(parts = jsonParts()) {
   }
   const tail = SHELL[1], cut = tail.indexOf(SCRIPT_CLOSE) + SCRIPT_CLOSE.length;
   const out = new Blob([head, '\n', new Blob(parts), '\n', tail.slice(0, cut), '\n', ...blobs, tail.slice(cut)], { type: 'text/html' });
-  out.jsonLen = jsonLen;
+  out.jsonLen = parts.chars;
+  // Blob が中身を写し終えたので、バイト列はすぐ手放す（GC を待たない）。parts はもう使えない
+  for (const p of parts) if (p.buffer && p.buffer.transfer) p.buffer.transfer(0);
   return out;
 }
 // ファイルを少しずつ読んで、データと画像を取り出す（ファイル全体を1つの文字列にしないので、何 GB でも読める）。
@@ -1207,18 +1236,24 @@ async function readBook(file) {
   return d;
 }
 // 並び・所属・削除に関わる値。変わったら行の一覧などの作り置きを捨てる
-const STRUCT = new Set(['order', 'deleted', 'sheet', 'owner', 'item', 'run', 'columns', 'kind', 'z', 'freeze']);
+const STRUCT = new Set(['order', 'deleted', 'sheet', 'owner', 'item', 'run', 'kind', 'z']);
+// 列の設定は行の一覧や索引に関わらないので、別に数える（列を動かしただけで全部の索引を作り直さない）
+const COLSET = new Set(['columns', 'freeze']);
 /* 時刻: PC の時計がずれていても、一度見たほかの人の時刻より後になるようにする（自分の変更が古い扱いにならないように） */
 let CLOCK = 0;
 const tick = () => (CLOCK = Math.max(now(), CLOCK + 1));
-function setF(o, k, v) {
+// sameIndex: 呼ぶ側が索引を直すので、作り置きを捨てなくてよいとき
+function setF(o, k, v, sameIndex) {
   if (CUR && !APPLYING) CUR.push({ o, k, had: k in o, old: clone(o[k]) });
   const t = tick(), ts = o.ts || (o.ts = {});
   // bt: この値を書いたとき、元にした値の時刻。合わせるとき「相手の値を見たうえで直したのか」を見分けるのに使う
   if (ts[k]) (o.bt || (o.bt = {}))[k] = ts[k]; else if (o.bt) delete o.bt[k];
   if (k === 'verdict' && o.item) tallyDelta(o, o[k] || null, v || null);
   o[k] = v; ts[k] = t; o.updatedAt = t;
-  if (STRUCT.has(k)) S.ver++;
+  if (sameIndex) { /* 索引は呼ぶ側が直す */ }
+  else if (k === 'order' && o.sheet !== undefined) S.ordVer++;  // 行の並びだけが変わった
+  else if (STRUCT.has(k)) S.ver++;
+  else if (COLSET.has(k)) S.colVer++;
   const row = o.item || o.id;
   S.rh.delete(row); S.dirtyRows.add(row);
   markDirty();
@@ -1228,7 +1263,7 @@ function setF(o, k, v) {
 function created(o, coll) {
   if (coll === 'records' || coll === 'elements' || coll === 'comments') {
     buildIndex();
-    if (coll === 'records') IX.rec.set(o.item + '|' + o.run, o);
+    if (coll === 'records') recIndexSet(IX, o.item, o.run, o);
     else if (coll === 'comments') { cmIndexAdd(IX, o); S.dirtyRows.add(o.item); }
     else {
       IX.el.set(o.owner, (IX.el.get(o.owner) || 0) + 1);
@@ -1236,6 +1271,17 @@ function created(o, coll) {
       IX.els.get(o.owner).push(o);
       cacheAdd('elById', o);
       S.dirtyRows.add(o.owner.split(':')[1]);
+    }
+  } else if (coll === 'items') {
+    // 行を足しても結果の索引は変わらない。行の一覧だけ作り直し、集計は足すだけにする
+    S.ordVer++;
+    cacheAdd('itemById', o);
+    if (CACHE.ver === S.ver) {
+      const inCases = caseSheets().some(s => s.id === o.sheet);
+      for (const r of D.runs) for (const key of [`tally:${o.sheet}|${r.id}`, inCases ? `tally:*|${r.id}` : '']) {
+        const t = CACHE.m.get(key);
+        if (t) { t.total++; t.none++; }
+      }
     }
   } else S.ver++;
   if (CUR) CUR.push({ o, k: 'deleted', had: true, old: true });
@@ -1491,27 +1537,47 @@ function cached(key, make) {
   if (v === undefined) { v = make(); CACHE.m.set(key, v); }
   return v;
 }
+// 行の一覧とその番号は、行の並び（S.ordVer）にも従う。行を動かす・足すときは、ここだけ捨てる（結果の索引や集計は作り直さない）
+const ROWCACHE = { ver: -1, ord: -1, m: new Map() };
+function rowCached(key, make) {
+  if (ROWCACHE.ver !== S.ver || ROWCACHE.ord !== S.ordVer) { ROWCACHE.ver = S.ver; ROWCACHE.ord = S.ordVer; ROWCACHE.m = new Map(); }
+  let v = ROWCACHE.m.get(key);
+  if (v === undefined) { v = make(); ROWCACHE.m.set(key, v); }
+  return v;
+}
 // 作り置きの表がまだ有効なら、新しく作った物をそこに足す
 function cacheAdd(key, o) { if (CACHE.ver === S.ver) { const m = CACHE.m.get(key); if (m) m.set(o.id, o); } }
-const getItem = id => cached('itemById', () => new Map(D.items.map(i => [i.id, i]))).get(id);
+// 今のシートの行は行番号の表から引ける。全部の行の表を作らずに済むので、最初に結果を付けるときが軽い
+const getItem = id => {
+  if (ROWCACHE.ver === S.ver && ROWCACHE.ord === S.ordVer) {
+    const no = ROWCACHE.m.get('no:' + S.sheet), n = no && no.get(id);
+    if (n) return ROWCACHE.m.get('items:' + S.sheet)[n - 1];
+  }
+  return cached('itemById', () => new Map(D.items.map(i => [i.id, i]))).get(id);
+};
 const getEl = id => cached('elById', () => new Map(D.elements.map(e => [e.id, e]))).get(id);
-// 削除の印が付いた結果の記録（付け直すときに生き返らせる）。生きている記録は IX.rec から引く
-const deadRec = id => cached('deadRec', () => new Map(D.records.filter(r => r.deleted).map(r => [r.id, r]))).get(id);
 const sheetTally = (sid, run) => cached(`tally:${sid}|${run}`, () => tally(itemsOf(sid), run));
 const allTally = run => cached(`tally:*|${run}`, () => tally(caseSheets().flatMap(s => itemsOf(s.id)), run));
-const itemsOf = sid => cached('items:' + sid, () => live(D.items).filter(i => i.sheet === sid).sort(byOrder));
-const noOf = (sid, id) => cached('no:' + sid, () => new Map(itemsOf(sid).map((x, i) => [x.id, i + 1]))).get(id);
+const itemsOf = sid => rowCached('items:' + sid, () => D.items.filter(i => !i.deleted && i.sheet === sid).sort(byOrder));
+const noOf = (sid, id) => rowCached('no:' + sid, () => new Map(itemsOf(sid).map((x, i) => [x.id, i + 1]))).get(id);
 // コメントの索引: 項目ごとの一覧（cm）と、未解決の数（cmOpen。項目 | 列 の鍵でセルごとにも持つ）
 function cmIndexAdd(ix, c) {
   if (!ix.cm.has(c.item)) ix.cm.set(c.item, []);
   ix.cm.get(c.item).push(c);
   if (!c.done) for (const k of [c.item, c.item + '|' + (c.col || '')]) ix.cmOpen.set(k, (ix.cmOpen.get(k) || 0) + 1);
 }
+// 結果の記録の索引は、実施回ごとの「項目の ID → 記録」の表。1行ごとに鍵の文字列を作らないので、全行を見る処理（集計・検索・行の高さ）が軽い
+function recIndexSet(ix, itemId, runId, r) {
+  let m = ix.rec.get(runId);
+  if (!m) ix.rec.set(runId, m = new Map());
+  m.set(itemId, r);
+}
 function buildIndex() {
   IX = cached('ix', () => {
-    const rec = new Map(), el = new Map(), els = new Map(), cf = new Set(), ix = { rec, el, els, cf, cm: new Map(), cmOpen: new Map() };
+    // dead: 削除の印が付いた結果の記録（付け直すときに生き返らせる）。生きている記録は rec から引く
+    const rec = new Map(), dead = new Map(), el = new Map(), els = new Map(), cf = new Set(), ix = { rec, dead, el, els, cf, cm: new Map(), cmOpen: new Map() };
     for (const c of D.conflicts) if (!c.deleted && c.kind === 'value') cf.add(c.obj + '|' + c.k);
-    for (const r of D.records) if (!r.deleted) rec.set(r.item + '|' + r.run, r);
+    for (const r of D.records) { if (r.deleted) dead.set(r.id, r); else recIndexSet(ix, r.item, r.run, r); }
     for (const e of D.elements) {
       if (e.deleted) continue;
       el.set(e.owner, (el.get(e.owner) || 0) + 1);
@@ -1526,7 +1592,7 @@ function buildIndex() {
 }
 const commentsOf = itemId => { buildIndex(); return IX.cm.get(itemId) || []; };
 const elementsOf = owner => { buildIndex(); return IX.els.get(owner) || []; };
-const recOf = (itemId, runId) => IX.rec.get(itemId + '|' + runId) || null;
+const recOf = (itemId, runId) => { const m = IX.rec.get(runId); return (m && m.get(itemId)) || null; };
 const verdictOf = (itemId, runId) => (recOf(itemId, runId) || {}).verdict || null;
 
 // 変更の印。editSeq は「何回目の変更か」で、自動保存が途中で編集が入ったことに気づくのに使う
@@ -1537,10 +1603,15 @@ function markDirty() { const was = S.dirty; S.dirty = true; S.editSeq++; S.lastE
 function ensureRec(it, runId = S.run) {
   const id = `rec_${it.id}_${runId}`;
   buildIndex();
-  let r = recOf(it.id, runId) || deadRec(id);
+  let r = recOf(it.id, runId) || IX.dead.get(id);
   if (!r) { r = { id, item: it.id, run: runId, ts: {}, updatedAt: now() }; D.records.push(r); created(r, 'records'); }
-  else if (r.deleted) { setF(r, 'deleted', false); setF(r, 'item', it.id); setF(r, 'run', runId); }
-  IX.rec.set(it.id + '|' + runId, r);
+  else if (r.deleted) {
+    // 生き返らせる。索引と集計はここで直す（作り直すと、何千行もまとめて付けるときに1行ごとに全部を作り直すことになる）
+    setF(r, 'deleted', false, true); setF(r, 'item', it.id, true); setF(r, 'run', runId, true);
+    IX.dead.delete(id);
+    tallyDelta(r, null, r.verdict || null);
+  }
+  recIndexSet(IX, it.id, runId, r);
   return r;
 }
 async function setVerdict(it, v) { if (it) await setVerdictRows([it], v); }
@@ -1685,8 +1756,8 @@ function buildSkeleton() {
 const SKELETON_TEXT = [
   ['#title', 'title', () => _t('試験の名前')],
   ['#cfbtn', 'title', () => _t('ほかの人の変更と競合した箇所')],
-  ['[data-act="open"]', 'title', () => _t('別の試験ファイルを開く')], ['[data-act="open"]', 'text', () => _t('開く')],
-  ['[data-act="import"]', 'title', () => _t('ほかの人のファイルの内容を取り込む')], ['[data-act="import"]', 'text', () => _t('取り込み')],
+  ['[data-act="open"]', 'title', () => _t('別の試験ファイルに切り替える（今のファイルは閉じます）')], ['[data-act="open"]', 'text', () => _t('開く')],
+  ['[data-act="import"]', 'title', () => _t('ほかの人のファイルの内容を、今のファイルに合わせて1つにまとめる')], ['[data-act="import"]', 'text', () => _t('取り込み')],
   ['[data-act="save"]', 'text', () => _t('保存')],
   ['[data-act="more"]', 'title', () => _t('その他のメニュー')],
   ['.addrow', 'title', () => _t('一番下に行を追加')], ['.addrow', 'text', () => _t('＋ 行を追加')],
@@ -1790,9 +1861,19 @@ function renderToolbar() {
       ${prevRun() ? `<optgroup label="${_t('前の実施回（{0}）', esc(dn(prevRun().name)))}"><option value="prevNg"${S.vf === 'prevNg' ? ' selected' : ''}>${_t('前の実施回で NG')}</option><option value="prevNgOpen"${S.vf === 'prevNgOpen' ? ' selected' : ''}>${_t('前の実施回で NG で、まだ OK でない')}</option></optgroup>` : ''}
     </select>
     <button data-act="togglePane" class="ghost${S.pane ? ' on' : ''}" title="${_t('右の詳細パネルを表示・非表示')}">${_t('詳細パネル')}</button>` : ''}
+    <span id="hits" class="muted" style="font-size:12px" hidden></span>
     <span id="selinfo" class="muted" style="font-size:12px"></span>
     <span class="progress" id="progress"></span>`;
   renderProgress();
+  renderHits();
+}
+// 検索や絞り込みの最中は、何行が見えているかを出す
+function renderHits() {
+  const el = $('#hits');
+  if (!el) return;
+  const sh = curSheet(), on = S.view === 'sheet' && sh.kind === 'cases' && !!(S.q.trim() || S.vf || activeCf(sh).length);
+  el.hidden = !on;
+  if (on) el.textContent = _t('{0} / {1} 件を表示', S.rows.length, itemsOf(S.sheet).length);
 }
 function tally(items, runId) {
   const t = { total: items.length, ok: 0, ng: 0, hold: 0, na: 0, none: 0 };
@@ -1958,7 +2039,7 @@ function addItem(after, inherit, order) {
   if (after && inherit) for (const c of sheetCols(curSheet())) if (c.type === 'level') it[c.id] = after[c.id] || '';
   const sh = curSheet();
   for (const c of idCols(sh)) { it[c.id] = nextId(sh, c); it.ts[c.id] = tick(); }
-  D.items.push(it); created(it);
+  D.items.push(it); created(it, 'items');
   return it;
 }
 // 今の実施回の1つ前（回帰試験で「前回 NG だった行」を見るときの「前回」）
@@ -1998,7 +2079,7 @@ function byGroup(items, lv) {
   for (const it of items) { const k = it[lv.id] || '', l = m.get(k); if (l) l.push(it); else m.set(k, [it]); }
   return m;
 }
-const groupsOf = sh => cached('groups:' + sh.id, () => {
+const groupsOf = sh => rowCached(`groups:${sh.id}|${(foldCol(sh) || {}).id}`, () => {
   const lv = foldCol(sh), m = new Map();
   if (lv) for (const it of itemsOf(sh.id)) { const k = it[lv.id] || ''; m.set(k, (m.get(k) || 0) + 1); }
   return m;
@@ -2019,6 +2100,23 @@ function focusNewRow(it) {
   if (narrowed) renderToolbar();
   S.curId = it.id; S.c = Math.max(S.c, 1);
 }
+/* 検索: どれかの列に見つかった時点でやめる。ふつうの文字の列を先に見る（結果の記録を引く列より軽い）。
+ * 検索語に大文字・小文字の区別がなければ（日本語や数字だけなど）、セルの文字を小文字にしなくてよい。
+ * U+0307 は、大文字の İ を小文字にしたときに現れる文字で、それ自体には大文字がないので別に見る */
+function rowMatcher(C, q) {
+  const caseless = q.toUpperCase() === q && !q.includes('̇');
+  const has = caseless ? v => (typeof v === 'string' ? v : String(v)).includes(q) : v => String(v).toLowerCase().includes(q);
+  const plain = [], other = [];
+  for (const c of C) {
+    if (c.type === 'no') continue;
+    if (c.type === 'check' || c.type === 'verdict' || c.type === 'evidence' || REC_FIELDS.has(c.type)) other.push(c); else plain.push(c.id);
+  }
+  return it => {
+    for (let j = 0; j < plain.length; j++) { const v = it[plain[j]]; if (v && has(v)) return true; }
+    for (let j = 0; j < other.length; j++) { const v = cellText(it, other[j]); if (v && has(v)) return true; }
+    return false;
+  };
+}
 function visibleRows() {
   const sh = curSheet(), all = itemsOf(S.sheet), q = S.q.trim().toLowerCase();
   const cfs = activeCf(sh), lv = foldCol(sh), fold = lv ? foldSet(sh) : null, folding = !!(fold && fold.size);
@@ -2026,11 +2124,11 @@ function visibleRows() {
   const C = sheetCols(sh), prev = prevRun();
   // 検索の文字を打ち足しているときは、前の結果の中から探す（全行を見直さない）
   const P = S.qPrev, base = q && P && q.startsWith(P.q) && P.ver === S.ver && P.seq === S.editSeq && P.sheet === S.sheet && P.run === S.run && P.vf === S.vf && P.cf === S.cfVer ? P.rows : all;
+  const match = q ? rowMatcher(C, q) : null;
   let rows = (q || S.vf || cfs.length) ? base.filter(it => {
     if (S.vf && !rowPass(it, S.vf, prev)) return false;
     for (const [c, set] of cfs) if (!set.has(cellText(it, c))) return false;
-    if (q && !C.map(c => cellText(it, c)).join('\n').toLowerCase().includes(q)) return false;
-    return true;
+    return !match || match(it);
   }) : all;
   S.qPrev = q ? { q, ver: S.ver, seq: S.editSeq, sheet: S.sheet, run: S.run, vf: S.vf, cf: S.cfVer, rows } : null;
   if (folding) { let last = null; rows = rows.filter(it => { const k = it[lv.id] || '', first = k !== last; last = k; return first || !fold.has(k); }); }
@@ -2052,21 +2150,55 @@ function sortRows(rows, sh) {
  * 行の高さは中身から見積もっておき、描いたら実際の高さで置き換える。 */
 const OVERSCAN = 12, LINE_H = 19.5, ROW_PAD = 11;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// 見積もりに使う列と、1行に入る文字数は、列の並びごとに1回だけ求める（全行で求め直さない）
+let hPlanC = null, hPlan = null;
+function heightPlan(C) {
+  if (hPlanC !== C) { hPlanC = C; hPlan = C.filter(c => TEXTUAL.has(c.type)).map(c => ({ id: REC_FIELDS.has(c.type) ? c.type : c.id, rec: REC_FIELDS.has(c.type), per: Math.max(1, Math.floor((c.w - 16) / 13)) })); }
+  return hPlan;
+}
+// 文字が何行になるか。大半のセルは短くて1行
+function textLines(v, per) {
+  if (typeof v !== 'string') v = String(v);
+  if (v.length <= per && !v.includes('\n')) return 1;
+  let n = 0, from = 0, nl;
+  while ((nl = v.indexOf('\n', from)) >= 0) { n += Math.max(1, Math.ceil((nl - from) / per)); from = nl + 1; }
+  return n + Math.max(1, Math.ceil((v.length - from) / per));
+}
 function estimateH(it, C) {
-  let lines = 1;
-  for (const c of C) {
-    if (!TEXTUAL.has(c.type)) continue;
-    const v = String(getCell(it, c));
+  const plan = heightPlan(C);
+  let lines = 1, r;
+  for (let p = 0; p < plan.length; p++) {
+    const { id, rec, per } = plan[p];
+    let v;
+    if (rec) { if (r === undefined) r = recOf(it.id, S.run); v = r ? r[id] : ''; } else v = it[id];
     if (!v) continue;
-    const per = Math.max(1, Math.floor((c.w - 16) / 13));
-    let n = 0, seg = 0;
-    for (let i = 0; i < v.length; i++) {
-      if (v.charCodeAt(i) === 10) { n += Math.max(1, Math.ceil(seg / per)); seg = 0; } else seg++;
-    }
-    n += Math.max(1, Math.ceil(seg / per));
+    const n = textLines(v, per);
     if (n > lines) lines = n;
   }
   return Math.round(ROW_PAD + lines * LINE_H);
+}
+/* 実施回を切り替えたとき、高さが変わるかもしれない行だけ見積もりを捨てる（全行を見積もり直さない）。
+ * 実施回ごとに違うのは実施者・実施日・備考だけなので、その行数が同じ行はそのまま。
+ * 行数が違っても、ほかの列のほうが高い行（手順が何行もあるなど）は変わらない */
+function dropRunHeights(C, oldRun, newRun) {
+  const plan = heightPlan(C).filter(p => p.rec);
+  if (!plan.length) return;
+  const recLines = r => {
+    let lines = 1;
+    if (r) for (let p = 0; p < plan.length; p++) { const v = r[plan[p].id]; if (v) { const n = textLines(v, plan[p].per); if (n > lines) lines = n; } }
+    return lines;
+  };
+  const A = IX.rec.get(oldRun) || new Map(), B = IX.rec.get(newRun) || new Map();
+  const check = (id, la, lb) => {
+    if (la === lb) return;
+    const h = S.rh.get(id);
+    if (h === undefined) return;
+    const lines = Math.round((h - ROW_PAD) / LINE_H);
+    if (la < lines && lb <= lines) return;
+    S.rh.delete(id); S.dirtyRows.add(id);
+  };
+  for (const [id, r] of A) check(id, recLines(r), recLines(B.get(id)));
+  for (const [id, r] of B) if (!A.has(id)) check(id, 1, recLines(r));
 }
 function rowH(it, C) {
   let h = S.rh.get(it.id);
@@ -2096,6 +2228,14 @@ class Fenwick {
   }
 }
 const topOf = i => S.fen.sum(i);
+// 変わった行の高さだけを直す
+function applyDirtyRows(C) {
+  for (const id of S.dirtyRows) {
+    const i = S.rowIdx.get(id);
+    if (i != null) S.fen.set(i, rowH(S.rows[i], C));
+  }
+  S.dirtyRows.clear();
+}
 function computeLayout() {
   const C = cols(), n = S.rows.length, v = new Float64Array(n), idx = new Map();
   for (let i = 0; i < n; i++) { v[i] = rowH(S.rows[i], C); idx.set(S.rows[i].id, i); }
@@ -2110,12 +2250,25 @@ function renderGrid() {
   const key = `${S.sheet}|${S.run}|${C.map(c => c.id + c.type + c.w + (c.merge === false ? 'm' : '')).join(',')}`;
   // 行の並び・列・絞り込みが前と同じなら、変わった行だけ直して描き直す（全行を数え直さない）
   // 絞り込みや並べ替え、表示の言語（見出しの文言）が変わったら、行の一覧と見出しから作り直す
-  const sig = `${S.ver}|${LANG}|${key}|${S.q}|${S.vf}|${S.cfVer}|${S.foldVer}|${S.sortVer}`;
+  const sig = `${S.ver}|${S.ordVer}|${S.colVer}|${LANG}|${key}|${S.q}|${S.vf}|${S.cfVer}|${S.foldVer}|${S.sortVer}`;
   const narrowed = S.q || S.vf || activeCf(curSheet()).length || (foldCol(curSheet()) && foldSet(curSheet()).size) || sortOf(curSheet());
   if (sig === S.gridSig && !narrowed && S.fen && S.fen.n === S.rows.length) { refreshGrid(C); return; }
   S.foldC = foldCol(curSheet()); S.foldS = S.foldC ? foldSet(curSheet()) : null; S.groups = groupsOf(curSheet());
   S.gridSig = sig;
-  if (key !== S.layoutKey) { S.layoutKey = key; S.rh.clear(); }
+  // 行の高さは列の並びによらないので、列を入れ替えただけなら見積もりを捨てない
+  // シートごとに覚えるので、シートを行き来しても捨てない（見積もりは行の ID で持っているので混ざらない）
+  const layoutKey = C.map(c => c.id + c.type + c.w + (c.merge === false ? 'm' : '')).sort().join(','), sameH = layoutKey === S.layoutKeys.get(S.sheet);
+  if (S.layoutRun !== S.run) {
+    // 消した実施回の記録はもう引けないので、そのときは全部を見積もり直す。ほかのシートの列幅でも直せないので、次に開くときに見積もり直す
+    if (sameH) { if (S.layoutRun && live(D.runs).some(r => r.id === S.layoutRun)) dropRunHeights(C, S.layoutRun, S.run); else S.rh.clear(); }
+    S.layoutKeys.clear(); S.layoutKeys.set(S.sheet, layoutKey);
+    S.layoutRun = S.run;
+  }
+  if (!sameH) {
+    S.layoutKeys.set(S.sheet, layoutKey);
+    // 捨てるのはこのシートの行の分だけ。ほかのシートの分は残す
+    if (caseSheets().length > 1) { for (const it of itemsOf(S.sheet)) S.rh.delete(it.id); } else S.rh.clear();
+  }
   // 結合表示: その列の左にある階層の列が全部同じ（＝同じグループ）で、値も同じなら上のセルとつなげて見せる
   const lvIds = [];
   S.lvLeft = C.map(c => { const l = lvIds.slice(); if (c.type === 'level') lvIds.push(c.id); return l; });
@@ -2124,13 +2277,16 @@ function renderGrid() {
   S.fzLeft = []; let x = 0;
   for (let j = 0; j < S.fz; j++) { S.fzLeft.push(x); x += C[j].w; }
   S.fzW = x;
-  S.rows = visibleRows();
-  computeLayout();
+  // 行の一覧が前と同じ配列で高さも同じなら（列の移動・表示の言語など）、全行の位置を計算し直さない
+  const rows = visibleRows();
+  // 変わった行が多いときは、1行ずつ直すより全部を計算し直すほうが速い
+  if (sameH && rows === S.rows && S.fen && S.fen.n === rows.length && S.dirtyRows.size * 8 < rows.length) applyDirtyRows(C);
+  else { S.rows = rows; computeLayout(); }
   followCursor(C);
   const g = grid(), wrap = $('#gridwrap'), st = wrap.scrollTop;
   g.style.width = C.reduce((s, c) => s + c.w, 0) + 40 + 'px';
   g.innerHTML = `<colgroup>${C.map(c => `<col style="width:${c.w}px">`).join('')}<col style="width:40px"></colgroup><thead><tr>` +
-    C.map((c, j) => `<th${fzAttr(j, S.cf[c.id] ? 'cfon' : '')}${j ? ` data-c="${j}" data-act="colMenu" data-cid="${c.id}" title="${_t('クリックして列を設定')}"` : ''}><span class="thn">${j ? esc(dn(c.name)) : 'No'}${S.cf[c.id] ? ` <span class="cfmark" title="${_t('値で絞り込み中')}">▼</span>` : ''}${sortOf(curSheet()) && S.sort.col === c.id ? ` <span class="cfmark" title="${_t('並べ替え中')}">${S.sort.dir === 'desc' ? '▽' : '△'}</span>` : ''}</span>${j ? `<span class="colrs" data-cid="${c.id}"></span>` : `<button class="ins ins-r0" data-act="insRow" data-r="-1" title="${_t('一番上に行を追加')}">+</button>`}<button class="ins ins-c" data-act="insCol" data-j="${j}" title="${_t('ここに列を追加')}">+</button></th>`).join('') +
+    C.map((c, j) => `<th${fzAttr(j, S.cf[c.id] ? 'cfon' : '')}${j ? ` data-c="${j}" data-act="colMenu" data-cid="${c.id}" title="${_t('クリックして列を設定（左右にドラッグで移動）')}"` : ''}><span class="thn">${j ? esc(dn(c.name)) : 'No'}${S.cf[c.id] ? ` <span class="cfmark" title="${_t('値で絞り込み中')}">▼</span>` : ''}${sortOf(curSheet()) && S.sort.col === c.id ? ` <span class="cfmark" title="${_t('並べ替え中')}">${S.sort.dir === 'desc' ? '▽' : '△'}</span>` : ''}</span>${j ? `<span class="colrs" data-cid="${c.id}"></span>` : `<button class="ins ins-r0" data-act="insRow" data-r="-1" title="${_t('一番上に行を追加')}">+</button>`}<button class="ins ins-c" data-act="insCol" data-j="${j}" title="${_t('ここに列を追加')}">+</button></th>`).join('') +
     `<th class="addcol" data-act="colAddEnd" title="${_t('列を追加')}">＋</th></tr></thead><tbody>${bodyHtml(C, st)}</tbody>`;
   if (wrap.scrollTop !== st) wrap.scrollTop = st;
   S.headH = g.tHead.offsetHeight || 31;
@@ -2138,6 +2294,7 @@ function renderGrid() {
   paintSel();
   S.curId = curItem() ? curItem().id : null;
   if (S.paneItem !== S.curId) renderPane();
+  renderHits();
 }
 // 今のセルを、行が動いても同じ項目に付いていくようにする
 function followCursor(C) {
@@ -2151,11 +2308,7 @@ function followCursor(C) {
 }
 // 値だけが変わったとき: 変わった行の高さだけを直し、見えている行を描き直す
 function refreshGrid(C) {
-  for (const id of S.dirtyRows) {
-    const i = S.rowIdx.get(id);
-    if (i != null) S.fen.set(i, rowH(S.rows[i], C));
-  }
-  S.dirtyRows.clear();
+  applyDirtyRows(C);
   followCursor(C);
   grid().tBodies[0].innerHTML = bodyHtml(C, $('#gridwrap').scrollTop);
   measureWindow(C);
@@ -2175,7 +2328,7 @@ function renderWindow(force) {
 }
 function emptyHtml(C) {
   const blank = !live(D.items).length, all = itemsOf(S.sheet);
-  return `<tr><td class="empty" colspan="${C.length}"><div class="empty-in">${all.length ? `<p>${_t('条件に合う行がありません。')}</p>` :
+  return `<tr><td class="empty" colspan="${C.length}"><div class="empty-in">${all.length ? `<p>${_t('条件に合う行がありません。')}</p><div class="btns"><button data-act="clearFilter">${_t('絞り込みを解除')}</button></div>` :
     `<p>${blank ? _t('まだ試験項目がありません。') : _t('このシートにはまだ行がありません。')}</p>
      <p>${_t('コピーした表をここで <b>Ctrl+V</b> で貼り付けると、行として追加されます。')}</p>
      <div class="btns"><button data-act="addRow" class="primary">${_t('＋ 行を追加')}</button>${blank ? `<button data-act="sample">${_t('サンプルで試す')}</button>` : ''}</div>`}</div></td></tr>`;
@@ -2235,12 +2388,12 @@ function rowHtml(r, C) {
       case 'number': inner = text(c, it[c.id]); cls += ' num'; break;
       case 'select': inner = it[c.id] ? `<span class="chip">${esc(it[c.id])}</span>` : ''; cls += ' pick'; break;
       case 'check': inner = `<span class="ck${it[c.id] ? ' on' : ''}">${it[c.id] ? '✓' : ''}</span>`; cls += ' pick center'; break;
-      case 'verdict': inner = VMAP[v] ? `<span class="pill v-${v}">${vLabel(v)}</span>` : '<span class="pill v-none">—</span>'; cls += ' pick center'; break;
+      case 'verdict': inner = VMAP[v] ? `<span class="pill v-${v}">${vLabel(v)}</span>` : `<span class="pill v-none" title="${_t('クリックまたは 1〜4 キーで結果を付ける')}">—</span>`; cls += ' pick center'; break;
       case 'by': case 'at': case 'remark': inner = text(c, rec && rec[c.type]); cls += ' small'; break;
-      case 'evidence': { const n = IX.el.get(evOwner(it.id, S.run)); inner = n ? `<span class="ev-n">${CLIP}${n}</span>` : '<span class="ev-add">＋</span>'; cls += ' pick center'; break; }
+      case 'evidence': { const n = IX.el.get(evOwner(it.id, S.run)); inner = n ? `<span class="ev-n">${CLIP}${n}</span>` : `<span class="ev-add" title="${_t('クリックでエビデンス票を開く（Ctrl+V でスクリーンショットを貼り付け）')}">＋</span>`; cls += ' pick center'; break; }
       default: inner = text(c, it[c.id]);
     }
-    h += `<td data-r="${r}" data-c="${j}"${fzAttr(j, cls.trim())}>${inner}</td>`;
+    h += `<td data-r="${r}" data-c="${j}"${fzAttr(j, cls.trim())}${j ? '' : ` title="${_t('クリックで行を選択（選んだ行はドラッグか Alt+↑↓ で移動）')}"`}>${inner}</td>`;
   }
   return h + '</tr>';
 }
@@ -2831,7 +2984,7 @@ function histClear(rec) {
   setF(rec, 'histClr', tick()); setF(rec, 'hist', []); if (rec.histX) setF(rec, 'histX', []);
 }
 function resultFields(it, rec, v) {
-  return `<div class="vbtns">${VERDICTS.map(x => `<button data-act="verdict" data-id="${it.id}" data-v="${x.k}" class="pill v-${x.k}${v === x.k ? ' sel' : ''}">${_t(x.label)}</button>`).join('')}
+  return `<div class="vbtns">${VERDICTS.map(x => `<button data-act="verdict" data-id="${it.id}" data-v="${x.k}" class="pill v-${x.k}${v === x.k ? ' sel' : ''}" title="${_t('表で {0} キーを押しても付けられます', x.key)}">${_t(x.label)}</button>`).join('')}
       ${v ? `<button class="ghost mini" data-act="verdict" data-id="${it.id}" data-v="">${_t('未実施に戻す')}</button>` : ''}</div>
     <div class="rgrid">
       <label class="fl">${_t('実施者')}<input type="text" data-rf="by" data-id="${it.id}" value="${esc(rec.by || '')}"></label>
@@ -2911,7 +3064,7 @@ function toolsHtml(free) {
     <button data-act="tool" data-t="text">${_t('＋ 文字')}</button>
     <button data-act="tool" data-t="title">${_t('＋ 見出し')}</button>
     <button data-act="tool" data-t="log">${_t('＋ ログ・コード')}</button>
-    <button data-act="tool" data-t="frame">${_t('＋ 枠')}</button>
+    <button data-act="tool" data-t="frame" title="${_t('赤枠や、個人情報を隠す黒塗り・白塗りの枠を置きます')}">${_t('＋ 枠')}</button>
     <button data-act="tool" data-t="marker" title="${_t('丸数字の印（①②③…）')}">＋ ①</button>
     <button data-act="tool" data-t="arrow">${_t('＋ 矢印')}</button>
     <button data-act="tool" data-t="line">${_t('＋ 線')}</button>
@@ -3485,16 +3638,23 @@ function renderSummary() {
   buildIndex();
   const R = runs(), SH = caseSheets();
   const allItems = SH.flatMap(s => itemsOf(s.id));
-  const t = tally(allItems, S.run);
-  const row = (label, x, sub) => `<tr${sub ? ' class="sub"' : ''}><td>${esc(label)}</td><td>${x.total}</td><td>${x.ok}</td><td class="${x.ng ? 'ng' : ''}">${x.ng}</td><td>${x.hold}</td><td>${x.na}</td><td>${x.none}</td><td class="pct">${barHtml(x)}${pct(x)}</td></tr>`;
+  const t = allTally(S.run);
+  // 数字を押すと、その行だけに絞った表を開く（0 件の数字は押せない）
+  const goTip = _t('クリックで該当する行を表示');
+  const goAttr = (n, vf) => n ? ` data-act="sumGo" data-vf="${vf}" title="${goTip}"` : '';
+  const goTd = (n, vf, cls = '') => { const c = (cls + (n ? ' sgo' : '')).trim(); return `<td${c ? ` class="${c}"` : ''}${goAttr(n, vf)}>${n}</td>`; };
+  const row = (label, x, sub, at) => {
+    const n = at ? goTd : (v, _, cls) => `<td${cls ? ` class="${cls}"` : ''}>${v}</td>`;
+    return `<tr${sub ? ' class="sub"' : ''}${at ? ` data-sid="${esc(at.sid)}"${at.g !== undefined ? ` data-g="${esc(at.g)}"` : ''}` : ''}><td${at && x.total ? ` class="sgo"${goAttr(x.total, '')}` : ''}>${esc(label)}</td><td>${x.total}</td>${n(x.ok, 'ok')}${n(x.ng, 'ng', x.ng ? 'ng' : '')}${n(x.hold, 'hold')}${n(x.na, 'na')}${n(x.none, 'none')}<td class="pct">${barHtml(x)}${pct(x)}</td></tr>`;
+  };
   const head = `<tr><th></th><th>${_t('項目数')}</th><th>OK</th><th>NG</th><th>${_t('保留')}</th><th>${_t('対象外')}</th><th>${_t('未実施')}</th><th>${_t('消化率')}</th></tr>`;
   let byPart = '';
   for (const s of SH) {
     const items = itemsOf(s.id), lv = sheetCols(s).find(c => c.type === "level");
-    byPart += row(dn(s.name), tally(items, S.run));
+    byPart += row(dn(s.name), sheetTally(s.id, S.run), false, { sid: s.id });
     if (!lv) continue;
     const groups = byGroup(items, lv);
-    if (groups.size > 1 || (groups.size && !groups.has(''))) for (const [g, list] of groups) byPart += row(g || _t('（なし）'), tally(list, S.run), true);
+    if (groups.size > 1 || (groups.size && !groups.has(''))) for (const [g, list] of groups) byPart += row(g || _t('（なし）'), tally(list, S.run), true, { sid: s.id, g });
   }
   const people = new Map();
   for (const it of allItems) {
@@ -3505,9 +3665,14 @@ function renderSummary() {
     people.set(name, p);
   }
   // 証跡: 結果ごとに「証跡のある行」を数える（OK なのに証跡がない行は、レビューで見るべきところ）
-  const evOf = items => { const e = { total: items.length, ev: 0, ok: 0, okEv: 0 }; for (const it of items) { const has = !!IX.el.get(evOwner(it.id, S.run)), v = verdictOf(it.id, S.run); if (has) e.ev++; if (v === 'ok') { e.ok++; if (has) e.okEv++; } } return e; };
-  const evRow = (label, e) => `<tr><td>${esc(label)}</td><td>${e.total}</td><td>${e.ev}</td><td>${e.ok}</td><td class="${e.ok - e.okEv ? 'ng' : ''}">${e.ok - e.okEv}</td></tr>`;
-  const evAll = evOf(allItems);
+  const anyEl = IX.el.size > 0;  // 証跡が1つもなければ、行ごとに鍵の文字列を作らない
+  const evOf = items => { const e = { total: items.length, ev: 0, ok: 0, okEv: 0 }; for (const it of items) { const has = anyEl && !!IX.el.get(evOwner(it.id, S.run)), v = verdictOf(it.id, S.run); if (has) e.ev++; if (v === 'ok') { e.ok++; if (has) e.okEv++; } } return e; };
+  const evRow = (label, e, sid) => sid
+    ? `<tr data-sid="${esc(sid)}"><td>${esc(label)}</td><td>${e.total}</td>${goTd(e.ev, 'ev')}<td>${e.ok}</td>${goTd(e.ok - e.okEv, 'okNoev', e.ok - e.okEv ? 'ng' : '')}</tr>`
+    : `<tr><td>${esc(label)}</td><td>${e.total}</td><td>${e.ev}</td><td>${e.ok}</td><td class="${e.ok - e.okEv ? 'ng' : ''}">${e.ok - e.okEv}</td></tr>`;
+  const evBySheet = SH.map(s => [dn(s.name), evOf(itemsOf(s.id)), s.id]);  // 合計はシートごとの数を足す（全行を数え直さない）
+  const evAll = { total: 0, ev: 0, ok: 0, okEv: 0 };
+  for (const [, e] of evBySheet) for (const k in evAll) evAll[k] += e[k];
   // 前の実施回との比較: 前回 NG だった行が今回どうなったか
   const prev = prevRun();
   let trans = '';
@@ -3525,25 +3690,26 @@ function renderSummary() {
     const it = getItem(id);
     if (it && !it.deleted && SH.some(s => s.id === it.sheet)) for (const c of l) if (!c.done) cmOpenAll++;
   }
+  const goCard = (cls, label, n, vf) => `<div class="card${cls ? ' ' + cls : ''}${n ? ' sgo' : ''}"${n ? ` role="button" tabindex="0"${goAttr(n, vf)}` : ''}><div class="k">${label}</div><div class="v">${n}</div></div>`;
   $('#summary').innerHTML = `
     <div class="cards">
       <div class="card"><div class="k">${_t('項目数')}</div><div class="v">${t.total}</div></div>
       <div class="card"><div class="k">${_t('消化率（{0}）', esc(runName(S.run)))}</div><div class="v">${pct(t)}</div></div>
-      <div class="card ok"><div class="k">OK</div><div class="v">${t.ok}</div></div>
-      <div class="card ng"><div class="k">NG</div><div class="v">${t.ng}</div></div>
-      <div class="card hold"><div class="k">${_t('保留')}</div><div class="v">${t.hold}</div></div>
-      <div class="card"><div class="k">${_t('未実施')}</div><div class="v">${t.none}</div></div>
-      <div class="card"><div class="k">${_t('証跡あり')}</div><div class="v">${evAll.ev}</div></div>
-      <div class="card${evAll.ok - evAll.okEv ? ' ng' : ''}"><div class="k">${_t('OK なのに証跡なし')}</div><div class="v">${evAll.ok - evAll.okEv}</div></div>
-      <div class="card${cmOpenAll ? ' hold' : ''}"><div class="k">${_t('未解決のコメント')}</div><div class="v">${cmOpenAll}</div></div>
+      ${goCard('ok', 'OK', t.ok, 'ok')}
+      ${goCard('ng', 'NG', t.ng, 'ng')}
+      ${goCard('hold', _t('保留'), t.hold, 'hold')}
+      ${goCard('', _t('未実施'), t.none, 'none')}
+      ${goCard('', _t('証跡あり'), evAll.ev, 'ev')}
+      ${goCard(evAll.ok - evAll.okEv ? 'ng' : '', _t('OK なのに証跡なし'), evAll.ok - evAll.okEv, 'okNoev')}
+      ${goCard(cmOpenAll ? 'hold' : '', _t('未解決のコメント'), cmOpenAll, 'cmOpen')}
     </div>
     <h3>${_t('シート・大項目ごと（{0}）', esc(runName(S.run)))}</h3>
     <table class="st">${head}${byPart}${row(_t('合計'), t)}</table>
     <h3>${_t('実施回ごと')}</h3>
-    <table class="st">${head.replace('<th></th>', `<th>${_t('実施回')}</th>`)}${R.map(r => row(dn(r.name), tally(allItems, r.id))).join('')}</table>
+    <table class="st">${head.replace('<th></th>', `<th>${_t('実施回')}</th>`)}${R.map(r => row(dn(r.name), allTally(r.id))).join('')}</table>
     ${trans}
     <h3>${_t('証跡（{0}）', esc(runName(S.run)))}</h3>
-    <table class="st"><tr><th></th><th>${_t('項目数')}</th><th>${_t('証跡あり')}</th><th>OK</th><th>${_t('OK なのに証跡なし')}</th></tr>${SH.map(s => evRow(dn(s.name), evOf(itemsOf(s.id)))).join('')}${evRow(_t('合計'), evAll)}</table>
+    <table class="st"><tr><th></th><th>${_t('項目数')}</th><th>${_t('証跡あり')}</th><th>OK</th><th>${_t('OK なのに証跡なし')}</th></tr>${evBySheet.map(([name, e, sid]) => evRow(name, e, sid)).join('')}${evRow(_t('合計'), evAll)}</table>
     ${trend.days.length ? `<h3>${_t('消化の推移（{0}）', esc(runName(S.run)))}</h3>${trendSvg(trend, t.total)}
     <table class="st"><tr><th>${_t('日付')}</th><th>${_t('その日の消化数')}</th><th>${_t('累計')}</th><th>NG</th></tr>${trend.days.map(d => `<tr><td>${esc(d.day)}</td><td>${d.n}</td><td>${d.cum}</td><td class="${d.ng ? 'ng' : ''}">${d.ng}</td></tr>`).join('')}</table>` : ''}
     ${people.size ? `<h3>${_t('実施者ごと（{0}）', esc(runName(S.run)))}</h3><table class="st"><tr><th>${_t('実施者')}</th><th>${_t('実施数')}</th><th>NG</th></tr>${[...people].map(([k, p]) => `<tr><td>${esc(k)}</td><td>${p.n}</td><td class="${p.ng ? 'ng' : ''}">${p.ng}</td></tr>`).join('')}</table>` : ''}
@@ -3551,7 +3717,15 @@ function renderSummary() {
 }
 
 /* 消化の推移: 結果を付けた日ごとに数える。日は「いつ付けたか」（結果の時刻 ts、なければ実施日の文字）から */
-const dayOf = ts => { const d = new Date(ts); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`; };
+// 同じ日の時刻が続くので、直前に求めた日の範囲に入っていれば Date を作らない（夏時間の日は長さが違うので、日の始まりと終わりで見る）
+let dayMemo = { from: 1, to: 0, day: '' };
+const dayOf = ts => {
+  if (ts >= dayMemo.from && ts < dayMemo.to) return dayMemo.day;
+  const d = new Date(ts), y = d.getFullYear(), m = d.getMonth(), n = d.getDate();
+  const day = `${y}/${String(m + 1).padStart(2, '0')}/${String(n).padStart(2, '0')}`;
+  dayMemo = { from: new Date(y, m, n).getTime(), to: new Date(y, m, n + 1).getTime(), day };
+  return day;
+};
 function trendData(items, run) {
   const m = new Map();
   for (const it of items) {
@@ -3883,7 +4057,7 @@ function loadDoc(d, handle) {
   S.sheet = (caseSheets()[0] || sheets()[0]).id; S.run = runs()[0].id; S.r = 0; S.c = 1; S.curId = null;
   S.view = 'sheet'; S.q = ''; S.vf = ''; S.bSel = null; S.bEdit = null; S.ar = 0; S.ac = 1;
   UNDO.length = 0; REDO.length = 0; CUR = null; BLOBNODES.clear();
-  S.ver++; S.rh.clear(); S.layoutKey = '';
+  S.ver++; S.rh.clear(); S.layoutKeys.clear(); S.layoutRun = null;
   // ファイルの中で一番新しい時刻より後に書くようにする（保存した PC の時計が進んでいても、自分の変更が負けないように）
   S.docMax = docMaxTs(D);
   if (S.docMax > CLOCK) CLOCK = S.docMax;
@@ -4110,11 +4284,12 @@ const actions = {
     if (a[1] !== 'none') {
       buildIndex();
       let n = 0;
+      const at = fmt(now(), true);  // 全行で同じ。行ごとに日付の文字を作らない
       for (const sh of caseSheets()) for (const it of itemsOf(sh.id)) {
         const p = recOf(it.id, prev.id);
         if (!p || !p.verdict) continue;
         if (a[1] === 'copy') { const rec = ensureRec(it, r.id); for (const k of ['verdict', 'by', 'at', 'remark']) if (p[k]) setF(rec, k, p[k]); setF(rec, 'byAuto', false); setF(rec, 'atAuto', false); n++; }
-        else if (p.verdict === 'ok' || p.verdict === 'na') { const rec = ensureRec(it, r.id); setF(rec, 'verdict', 'na'); setF(rec, 'by', S.me); setF(rec, 'at', fmt(now(), true)); setF(rec, 'byAuto', true); setF(rec, 'atAuto', true); setF(rec, 'remark', _t('前回（{0}）は{1}', dn(prev.name), vLabel(p.verdict))); n++; }
+        else if (p.verdict === 'ok' || p.verdict === 'na') { const rec = ensureRec(it, r.id); setF(rec, 'verdict', 'na'); setF(rec, 'by', S.me); setF(rec, 'at', at); setF(rec, 'byAuto', true); setF(rec, 'atAuto', true); setF(rec, 'remark', _t('前回（{0}）は{1}', dn(prev.name), vLabel(p.verdict))); n++; }
       }
       toast(a[1] === 'copy' ? _t('{0} 件の結果を「{1}」から引き継ぎました', n, dn(prev.name)) : _t('前回 OK・対象外だった {0} 件を対象外にしました。残りは前回 NG と未実施の行です', n));
     }
@@ -4184,6 +4359,26 @@ const actions = {
   },
   cfClear(btn) { delete S.cf[btn.dataset.cid]; S.cfVer++; renderToolbar(); renderGrid(); focusMain(); },
   cfClearAll() { for (const c of sheetCols(curSheet())) delete S.cf[c.id]; S.cfVer++; renderToolbar(); renderGrid(); focusMain(); },
+  clearFilter() { clearTimeout(S.qTimer); S.q = ''; S.vf = ''; for (const c of sheetCols(curSheet())) delete S.cf[c.id]; S.cfVer++; renderToolbar(); renderGrid(); focusMain(); },
+  // 集計の数字から、その行だけに絞った表を開く。data-sid がなければ（カード）、該当する行のある最初のシートへ
+  sumGo(el) {
+    const tr = el.closest('tr[data-sid]'), vf = el.dataset.vf || '';
+    commitEdit(); commitBoardEdit();
+    buildIndex();
+    const prev = prevRun(), list = caseSheets(), hits = tr ? [] : list.filter(s => itemsOf(s.id).some(it => rowPass(it, vf, prev)));
+    const sh = tr ? list.find(s => s.id === tr.dataset.sid) : hits.find(s => s.id === S.sheet) || hits[0];
+    if (!sh) return;
+    // 前の検索や絞り込みが残っていると数が合わなくなるので、外す。畳んだグループも開く（畳むと数字の行が隠れる）
+    const lv = foldCol(sh);
+    for (const c of sheetCols(sh)) delete S.cf[c.id];
+    if (tr && tr.dataset.g !== undefined && lv) S.cf[lv.id] = new Set([tr.dataset.g]);
+    S.cfVer++;
+    if (lv) for (const k of [...foldSet(sh)]) setFold(sh, k, false);
+    clearTimeout(S.qTimer);
+    S.q = ''; S.vf = vf; S.view = 'sheet'; S.sheet = sh.id; S.r = 0; S.curId = null; S.bSel = null;
+    render(); focusMain();
+    if (hits.length > 1) toast(_t('ほかのシートにも該当する行があります（{0} シート）', hits.length));
+  },
   colSort(btn) { commitEdit(); S.sort = { sheet: S.sheet, col: btn.dataset.cid, dir: btn.dataset.d }; S.sortVer++; renderToolbar(); renderGrid(); paintCursor(); focusMain(); },
   sortClear() { S.sort = null; S.sortVer++; renderToolbar(); renderGrid(); paintCursor(); focusMain(); },
   // 折りたたみと目次（大項目）
@@ -4482,6 +4677,10 @@ function bind() {
   $('#toolbar').addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
   $('#pop').addEventListener('mousedown', e => e.preventDefault());
   // シートのタブを右クリック: 名前・色
+  $('#summary').addEventListener('keydown', e => {
+    const a = (e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-act="sumGo"]');
+    if (a) { e.preventDefault(); actions.sumGo(a); }
+  });
   $('#tabs').addEventListener('contextmenu', e => { const t = e.target.closest('[data-act="sheet"]'); if (!t) return; e.preventDefault(); actions.tabMenu(t); });
   app.addEventListener('dblclick', e => {
     const tab = e.target.closest('[data-act="sheet"]');

@@ -70,7 +70,7 @@ The most used operations come first. All keys are listed under "Keys" below.
 - **Moving rows and columns**: drag a column header sideways to move the column. To move rows, select them in the No column, then drag them by the No column. `Alt+↑↓` moves the current row. Rows cannot be moved while the table is sorted.
 - **Range selection**: `Shift+arrows`, `Shift+click`, or drag. Click or drag in the No column to select whole rows. A copied range is tab-separated text, which pastes into other tables as rows and columns. A single pasted value fills the whole selected range.
 - **Formatting**: bold (`Ctrl+B`), strike-through (`Ctrl+5`) and text colour for the selected cells. Open a cell with `Enter`, `F2` or a double-click to format only the selected characters.
-- **Filters**: besides the result (OK / NG / Hold / N/A / not run) you can show "OK without evidence", "without evidence", "with evidence", and, with two or more runs, "NG in the previous run" and "NG in previous run and not yet OK", plus rows with comments. "Filter by value…" in a column header lists the values in that column with their counts, and you tick the ones to show. All of these combine with search (`Ctrl+F`).
+- **Filters**: besides the result (OK / NG / Hold / N/A / not run) you can show "OK without evidence", "without evidence", "with evidence", and, with two or more runs, "NG in the previous run" and "NG in previous run and not yet OK", plus rows with comments. "Filter by value…" in a column header lists the values in that column with their counts, and you tick the ones to show. All of these combine with search (`Ctrl+F`). While filtering, the toolbar shows how many rows are visible. When no row is left, "Clear filters" in the table removes them all at once.
 - **Sort**: "Sort ascending" / "Sort descending" in a column header. Display only; the row order in the file is unchanged ("Sorted … ×" in the toolbar restores it). Numbers compare as numbers and empty cells come last. Combines with filters and search.
 - **Replace**: `Ctrl+H` (or "Replace" in the toolbar) replaces text in the text columns of the visible rows, or only inside the selected range. It is one undo step. Cells with per-character formatting keep it.
 - **Folding and contents**: the first row of each top-level group (the first level column) shows ▾; click it to fold the group (only its first row stays, with the count). "Contents" in the toolbar lists the groups, jumps to one, and folds or unfolds all. Fold state is not saved in the file; the browser remembers it.
@@ -94,7 +94,7 @@ A free-form board, one per case per run. The "Evidence" column of the table show
 
 ### Summary and reports
 
-- The "Summary" tab shows counts per sheet, top-level group, run and tester, how many rows have evidence (including "OK without evidence"), with two or more runs "what the rows that were NG last run are now", progress per day (chart and table), and the number of open comments.
+- The "Summary" tab shows counts per sheet, top-level group, run and tester, how many rows have evidence (including "OK without evidence"), with two or more runs "what the rows that were NG last run are now", progress per day (chart and table), and the number of open comments. Click a card or a count to open the table narrowed to those rows, or a sheet or group name to open it.
 - "⋯ → Print report (PDF)…" builds a report with the tables, the summary, the evidence boards (optional) and the open comments, and opens the browser's print dialog. Choose "Save as PDF" for a PDF.
 - Drop other testbook files onto a free sheet, or use "＋ Other test metrics", and each becomes a card with that document's progress per run. Dropped onto the table instead, a file is imported, not made into a card. Dropping the same file again refreshes the numbers. "＋ Grand total" sums them all. With one file per feature, this gives you a one-file dashboard.
 - "⋯ → Export this sheet as CSV" exports the current sheet with the current run's results.
@@ -198,9 +198,9 @@ Numbers measured with `bench/bench.js` in a Chromium-based browser. A row has th
 
 | Rows | File | Load | First paint | One scroll | Edit a cell | Set a result | Clear a range (200 rows × 3 cols) | Save |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 10,000 | 5.8 MB | 0.02 s | 0.03 s | 5 ms | 9 ms | 6 ms | 7 ms | 0.04 s |
-| 100,000 | 57 MB | 0.2 s | 0.2 s | 5 ms | 6 ms | 5 ms | 7 ms | 0.4 s |
-| 500,000 | 284 MB | 1.0 s | 1.0 s | 5–11 ms | 6 ms | 4 ms | 5 ms | 1.8 s |
+| 10,000 | 5.9 MB | 0.02 s | 0.05 s | 6 ms | 4 ms | 13 ms | 9 ms | 0.04 s |
+| 100,000 | 56 MB | 0.2 s | 0.14 s | 6 ms | 4 ms | 7 ms | 9 ms | 0.3 s |
+| 500,000 | 281 MB | 1.2 s | 0.8 s | 5 ms | 4 ms | 7 ms | 9 ms | 1.8 s |
 
 | Images (about 140 KB each) | File | Load | First paint | Edit a cell | Open a board | Save |
 |---:|---:|---:|---:|---:|---:|---:|
@@ -208,7 +208,10 @@ Numbers measured with `bench/bench.js` in a Chromium-based browser. A row has th
 | 6,000 (2,000 rows) | 818 MB | 1.1 s | 0.01 s | 6 ms | 5 ms | 1.5 s |
 
 - Only the non-image data (JSON) is a single string, so saving stops when it would exceed 480 MB (around 800,000 rows). A warning appears when the file passes 1 GB.
-- Operations that still scale with the row count, at 500,000 rows: adding, deleting and moving rows (0.25–0.35 s, by drag or `Alt+↑↓`), switching the language (0.25 s), search (0.7 s), moving a column (0.7 s), the summary view (0.8–1.9 s), deleting a run with 350,000 results (1.2 s).
+- Saving is faster after the first time: 1.0 s at 500,000 rows.
+- Operations that still scale with the row count, at 500,000 rows: adding and moving rows (0.15 s, by drag or `Alt+↑↓`), deleting a row (0.2 s), going back to a sheet (0.06 s), switching the run (0.06–0.25 s), search (0.25–0.4 s), the summary view (0.2–0.4 s), changing a column's width (0.3 s), deleting a run with 350,000 results (0.6 s).
+- Moving a column, freezing columns and switching the language take about 10 ms at any row count.
+- Setting results on 10,000 rows at once takes 0.1 s or less, including setting them again.
 
 #### Time and memory in real Edge
 
@@ -242,7 +245,7 @@ bash test/run.sh                                          macOS / Linux
 ```
 
 - `-Filter マージ` (`--filter マージ`) runs only the tests whose name contains the text (test names are in Japanese). `-Show` (`--show`) opens a visible browser with the developer tools. `-Browser edge` or `TB_BROWSER=path` picks the browser.
-- When everything passes it prints `262 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
+- When everything passes it prints `303 件 OK` and exits with 0; otherwise it prints the failures and exits with 1.
 - `-Update` (`--update`) rewrites the golden files in `test\golden\` and the files in `samples\` after an intentional change; `git diff` then shows what changed.
 
 #### How it works

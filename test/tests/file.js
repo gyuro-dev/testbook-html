@@ -10,7 +10,7 @@
   };
   // 保存されるはずの中身（削除した物は印だけ、画像は中身つき）
   const expected = () => {
-    const d = JSON.parse(jsonParts().join(''));
+    const d = JSON.parse(TB.partsText(jsonParts()));
     for (const e of d.elements) if (!e.deleted && isBinary(e)) e.data = elData(D.elements.find(x => x.id === e.id));
     return d;
   };
@@ -77,7 +77,7 @@
 
   test('ファイル: JSON だけのファイルも読める', async () => {
     loadDoc(sampleDoc());
-    const want = JSON.parse(jsonParts().join(''));
+    const want = JSON.parse(TB.partsText(jsonParts()));
     const doc = await readBook(new File([JSON.stringify(want)], 'a.json'));
     eq(doc, want);
   });

@@ -94,6 +94,8 @@
     // 決まったシードの乱数（0 以上 1 未満）。性質の試験で、毎回同じ「ランダム」を作る
     rng(seed0) { let s = seed0 >>> 0 || 1; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 1000000) / 1000000; }; },
     clone: v => JSON.parse(JSON.stringify(v)),
+    // jsonParts() の部品（バイト列）を1つの文字列に戻す
+    partsText: parts => { const dec = new TextDecoder('utf-8', { ignoreBOM: true }); return parts.map(p => dec.decode(p)).join(''); },
     // 「この人がファイルを開いて、直して、保存した」を演じる。保存した中身（JSON を通した物）を返す
     user(doc, name, fn) { loadDoc(TB.clone(doc)); S.me = name; snap(); fn(); return TB.clone(D); },
     col: name => sheetCols(curSheet()).find(c => c.name === name),

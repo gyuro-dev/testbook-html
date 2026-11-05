@@ -6,6 +6,20 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+### Added
+
+- Numbers in the "Summary" tab are clickable. A card or a count opens the table narrowed to those rows, and a sheet or group name opens that sheet or group. Earlier search terms and filters are cleared and folded groups are opened, so the rows match the number.
+- While searching or filtering, the toolbar shows how many rows are visible ("12 / 150"). When nothing matches, a "Clear filters" button removes the search term and all filters at once.
+- Tooltips explain what you can do with: not-run results in the table, the evidence "＋", row numbers, column headers, the result buttons in the detail panel and "＋ Frame" (red frames and black or white fills). The tooltips on "Open" and "Import" now say that Open closes the current file and Import merges into it.
+
+### Changed
+
+- Faster at 500,000 rows, measured against 0.2.5: moving a column and changing the frozen columns (0.9 s and 0.25 s to about 5 ms), switching the language (60 ms to 10 ms), the summary view (1.6 s to 0.2–0.4 s), going back to a sheet (0.75 s to 0.06 s), switching the run (0.5–0.8 s to 0.06–0.25 s), setting the first result after opening (60 ms to 10 ms), adding and moving rows (0.4 s to 0.15 s), deleting a row (0.3 s to 0.2 s), changing a column's width (0.95 s to 0.3 s), search (0.7 s to 0.25–0.4 s), preparing a save in Edge (1.25–1.5 s to about 0.8 s, using less memory afterwards and pausing less when you scroll right after), adding a run that copies results (1.5 s to 0.3 s) and deleting a run (1.2 s to 0.6 s). Opening a 500,000-row file in Edge takes about 2.6 s instead of 3.1 s.
+
+### Fixed
+
+- Setting results or pasting testers on many rows no longer freezes the page when those rows' results had been removed (for example after `Ctrl+Z`, or in a file saved after removing them). Each row rebuilt every index; at 500,000 rows, 500 rows took about 100 s and now take 10 ms.
+
 ## [0.2.5] - 2026-11-04
 
 ### Fixed

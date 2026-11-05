@@ -10,7 +10,7 @@
 
   test('ゴールデン: サンプルの保存データ（sample-data.json）', () => {
     sample();
-    const d = JSON.parse(jsonParts().join(''));
+    const d = JSON.parse(TB.partsText(jsonParts()));
     golden('sample-data.json', JSON.stringify(d, null, 1) + '\n');
   });
 
