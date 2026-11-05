@@ -60,8 +60,8 @@
     snap(); setF(itemsOf(S.sheet)[0], C[3].id, '途中で直した');  // その間に編集
     eq(await p, null, '編集が入ったので捨てる');
     const parts = await jsonPartsAsync();
-    ok(parts && parts.length > 100000, '編集がなければ最後まで作る');
-    ok(parts.join('').includes('途中で直した'), '新しい内容が入っている');
+    ok(parts && parts.length > 3 && parts.every(p => p.length < 4 * PART_CHARS), '編集がなければ最後まで作る。全体を1つの巨大な文字列にはしない');
+    ok(TB.partsText(parts).includes('途中で直した'), '新しい内容が入っている');
   });
 
   test('自動保存: 手動の保存（Ctrl+S）は自動保存が終わるのを待ってから書く', async () => {
