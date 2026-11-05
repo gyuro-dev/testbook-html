@@ -201,4 +201,92 @@
     loadDoc(TB.clone(mine)); mergeInto(D, untouched); render();
     eq(runs().map(r => r.name), ['1回目'], 'ほかの人が何もしていなければ消えたまま');
   });
+
+  /* 列幅のつかみと＋。:hover は合成イベントでは付かないので、見出しに乗ったときの表示だけを要素に直接付ける。
+   * 押す相手は elementFromPoint で決める（本物のマウスと同じく、その座標で一番上にある要素に届く）。 */
+  const hoverTh = t => { t.style.zIndex = t.classList.contains('fz') ? 7 : 6; t.querySelector('.ins-c').style.display = 'grid'; };
+  const box = el => el.getBoundingClientRect();
+  const at = (x, y) => document.elementFromPoint(x, y);
+  const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const headers = () => [...document.querySelectorAll('#grid th[data-cid]')];
+
+  test('列幅: 見出しの右端は、＋が出ていても、どの高さでも幅を変えられる', () => {
+    rows('a');
+    for (const name of ['大項目', '確認内容']) {  // 固定列と、固定していない列
+      const t = th(name); hoverTh(t);
+      const grip = t.querySelector('.colrs'), g = box(grip);
+      eq(getComputedStyle(grip).cursor, 'col-resize', 'カーソル');
+      for (let y = Math.ceil(g.top); y < g.bottom; y++) for (const x of [g.left + 0.5, g.left + 3.5, g.right - 0.5]) {
+        ok(at(x, y) === grip, `${name} (${x}, ${y}) に当たったのは ${at(x, y) && at(x, y).className}`);
+      }
+      for (const frac of [0.05, 0.5, 0.95]) {  // 上端・真ん中・下端で実際に動かす
+        const tt = th(name); hoverTh(tt);
+        const r = box(tt.querySelector('.colrs')), x = r.left + 3.5, y = r.top + r.height * frac, w0 = col(name).w;
+        mouse('mousedown', at(x, y), x, y, 1);
+        mouse('mousemove', null, x + 20, y, 1);
+        mouse('mouseup', null, x + 20, y, 0);
+        eq(col(name).w, w0 + 20, `${name} 高さ ${frac} の幅`);
+      }
+    }
+  });
+
+  test('列幅: ＋は見出しの下の角で押せて、固定列でも縦横にスクロールしていても隠れない', () => {
+    rows(...Array.from({ length: 60 }, (_, i) => `行${i}`));
+    const g = document.querySelector('#gridwrap');
+    g.scrollLeft = 150; g.scrollTop = 200;
+    ok(g.scrollLeft > 0 && g.scrollTop > 0, 'スクロールしている');
+    const wrap = box(g), fzRight = box(document.querySelector('#grid th.fzl')).right;
+    const lastFz = document.querySelector('#grid th.fzl').dataset.cid;
+    const free = headers().find(t => !t.classList.contains('fz') && box(t).right > fzRight + 12 && box(t).right < wrap.right - 12);
+    ok(free, '固定していない列で、右端が見えているものがある');
+    for (const cid of [lastFz, free.dataset.cid]) {  // ＋を押すと描き直されるので、毎回探す
+      const t = document.querySelector(`#grid th[data-cid="${cid}"]`);
+      const name = colById(cid).name, n = names().length, j = names().indexOf(name);
+      hoverTh(t);
+      const plus = t.querySelector('.ins-c'), p = box(plus), h = box(t);
+      ok(Math.abs((p.left + p.right) / 2 - h.right) < 2 && Math.abs((p.top + p.bottom) / 2 - h.bottom) < 2, `${name} の＋は右下の角`);
+      for (const [x, y] of [[p.left + 9, p.top + 9], [p.right - 4, p.top + 9], [p.left + 9, p.bottom - 3], [p.right - 5, p.bottom - 5]]) {
+        ok(at(x, y) === plus, `${name} の＋ (${x}, ${y}) に当たったのは ${at(x, y) && at(x, y).className}`);
+      }
+      const r = S.r, c = S.c, x = p.left + 9, y = p.top + 9, el = at(x, y);
+      mouse('mousedown', el, x, y, 1);
+      eq([S.r, S.c], [r, c], `${name}: ＋を押してもセルは選ばない`);
+      mouse('mouseup', el, x, y, 0);
+      TB.click(el);
+      eq(names().length, n + 1, `${name}: 列が増える`);
+      eq(names()[j], name, `${name} はそのまま`);
+      eq(sheetCols(curSheet())[j + 1].type, 'text', `${name} の右に入る`);
+      undo(); render();
+      g.scrollLeft = 150; g.scrollTop = 200;
+    }
+  });
+
+  test('列幅: No の列の＋は重ならず、1行目のセルは＋が出ていなければそのまま押せる', () => {
+    rows('a', 'b');
+    const no = document.querySelector('#grid th:first-child');
+    ok(!no.querySelector('.colrs'), 'No の列につかみはない');
+    no.style.zIndex = 7;
+    const c = no.querySelector('.ins-c'), r0 = no.querySelector('.ins-r0');
+    c.style.display = r0.style.display = 'grid';
+    ok(!overlap(box(c), box(r0)), '列の＋と行の＋は重ならない');
+    for (const b of [c, r0]) { const p = box(b); ok(at(p.left + 9, p.top + 9) === b, `${b.className} を押せる`); }
+    c.style.display = r0.style.display = '';
+    no.style.zIndex = '';
+
+    const t = th('確認内容'), j = Number(t.dataset.c);
+    hoverTh(t);
+    const plus = t.querySelector('.ins-c'), p = box(plus);
+    const below = document.querySelector(`#grid td[data-r="0"][data-c="${j}"]`), b = box(below);
+    ok(overlap(p, b), '＋は1行目に少しかかる（見出しに乗っている間だけ）');
+    ok(at((b.left + b.right) / 2, (b.top + b.bottom) / 2) === below, '＋が出ていても、1行目のセルの真ん中は押せる');
+    ok(p.bottom - b.top <= 10, '1行目にかかるのは 10px まで');
+    plus.style.display = '';
+    t.style.zIndex = '';
+    const x = p.left + 5, y = p.bottom - 3, el = at(x, y);
+    ok(el && el.closest('td[data-r="0"]'), `＋が出ていなければセルに当たる（${el && el.tagName}）`);
+    mouse('mousedown', el, x, y, 1);
+    mouse('mouseup', el, x, y, 0);
+    eq(S.r, 0, '1行目が選ばれる');
+    eq(S.c, j, '押した列が選ばれる');
+  });
 })();

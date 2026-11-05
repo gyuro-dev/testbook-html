@@ -70,7 +70,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed}
 .grid th{position:sticky;top:0;z-index:3;background:var(--head);font-weight:600;font-size:12px;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);border-right:1px solid var(--line);white-space:nowrap;user-select:none}
 .grid th[data-act]{cursor:pointer}
 .grid th[data-act]:hover{color:var(--text);background:var(--hover)}
-.colrs{position:absolute;top:0;right:0;width:7px;height:100%;cursor:col-resize}
+.colrs{position:absolute;z-index:9;top:0;right:0;width:7px;height:100%;cursor:col-resize}
 .colrs:hover,.colrs.drag{background:var(--accent)}
 /* 行・列をドラッグで動かすとき。選んだ行の No は、つかめることが分かるように */
 #dropline{position:fixed;z-index:50;background:var(--accent);pointer-events:none;border-radius:2px}
@@ -112,6 +112,8 @@ body.dragcol,body.dragcol *{cursor:grabbing!important}
 .ins{position:absolute;z-index:8;width:18px;height:18px;padding:0;border-radius:50%;border:1.5px solid var(--accent);background:var(--panel);color:var(--accent);font-size:14px;font-weight:700;line-height:1;display:none;place-items:center;cursor:pointer}
 .ins:hover{background:var(--accent);color:#fff}
 .ins-c{right:-10px;top:50%;transform:translateY(-50%)}
+/* 列幅のつかみがある見出しでは、＋を下の角へ。角で少し重なる分は、つかみを上にして（.colrs の z-index）どの高さでも幅を変えられるように */
+.colrs~.ins-c{top:auto;bottom:-10px;transform:none}
 .ins-r,.ins-r0{left:50%;bottom:-10px;transform:translateX(-50%)}
 .grid th:hover{z-index:6}
 .grid th:hover>.ins-c,.grid th:first-child:hover>.ins-r0,.grid tr:hover .ins-r{display:grid}
