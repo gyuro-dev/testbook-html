@@ -3186,12 +3186,13 @@ function renderSelTb() {
       `<button data-act="elCopy" title="${_t('文字をコピー')}">${_t('文字をコピー')}</button>`;
   }
   if (e.type === 'frame') extra = [['red', '赤'], ['yellow', '黄'], ['blue', '青'], ['black', '黒塗り'], ['white', '白塗り']].map(([k, l]) => `<button data-act="elColor" data-v="${k}" class="${(e.color || 'red') === k ? 'on' : ''}" title="${k === 'black' || k === 'white' ? _t('中を塗りつぶす（個人情報などを隠す）') : ''}">${_t(l)}</button>`).join('');
-  if (e.type === 'marker') extra = `<button data-act="elNum" data-d="-1" title="${_t('番号を減らす')}">−</button><b style="align-self:center;padding:0 4px">${e.n || 1}</b><button data-act="elNum" data-d="1" title="${_t('番号を増やす')}">＋</button>` +
+  if (e.type === 'marker') extra = `<button data-act="elNum" data-d="-1" title="${_t('番号を減らす')}">−</button><b style="align-self:center;padding:0 4px">${esc(e.n || 1)}</b><button data-act="elNum" data-d="1" title="${_t('番号を増やす')}">＋</button>` +
     [['red', '赤'], ['blue', '青'], ['green', '緑'], ['black', '黒']].map(([k, l]) => `<button data-act="elColor" data-v="${k}" class="${(e.color || 'red') === k ? 'on' : ''}">${_t(l)}</button>`).join('');
   if (e.type === 'table') extra = `<button data-act="tblOp" data-v="addRow">${_t('＋行')}</button><button data-act="tblOp" data-v="addCol">${_t('＋列')}</button><button data-act="tblOp" data-v="delRow">${_t('−行')}</button><button data-act="tblOp" data-v="delCol">${_t('−列')}</button>`;
   if (e.type === 'image') extra = `<button data-act="elZoom">${_t('拡大表示')}</button><button data-act="elNatural">${_t('元の大きさ')}</button>`;
   if (e.type === 'line') extra = [['red', '赤'], ['black', '黒'], ['blue', '青']].map(([k, l]) => `<button data-act="elColor" data-v="${k}" class="${(e.color || 'red') === k ? 'on' : ''}">${_t(l)}</button>`).join('') + `<button data-act="elFmt" data-k="arrow" class="${e.arrow ? 'on' : ''}" title="${_t('線の先を矢印にする')}">${_t('矢印')}</button>`;
-  if (e.type === 'metric') extra = `<select id="metricRun">${runs().map(r => `<option value="${r.id}"${r.id === e.run ? ' selected' : ''}>${esc(dn(r.name))}</option>`).join('')}</select>`;
+  // 番号と実施回の ID は、読み込むときに数と安全な文字だけに確かめてあるが、ここでも esc を通す（あとで経路が増えても HTML にならないように）
+  if (e.type === 'metric') extra = `<select id="metricRun">${runs().map(r => `<option value="${esc(r.id)}"${r.id === e.run ? ' selected' : ''}>${esc(dn(r.name))}</option>`).join('')}</select>`;
   const tb = document.createElement('div');
   tb.className = 'seltb';
   tb.innerHTML = `${extra}${extra ? '<span style="width:1px;background:var(--line2)"></span>' : ''}${selTbCommon()}`;
