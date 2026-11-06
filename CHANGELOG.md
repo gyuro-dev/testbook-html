@@ -6,6 +6,8 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-06
+
 ### Added
 
 - Numbers in the "Summary" tab are clickable. A card or a count opens the table narrowed to those rows, and a sheet or group name opens that sheet or group. Earlier search terms and filters are cleared and folded groups are opened, so the rows match the number.
@@ -153,7 +155,8 @@ First public version.
 - Ready-made samples in `samples/`.
 - Automated tests that run in headless Chrome or Edge on Windows, Linux and macOS.
 
-[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/gyuro-dev/testbook-html/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.5...v0.3.0
 [0.2.5]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/gyuro-dev/testbook-html/compare/v0.2.2...v0.2.3
