@@ -157,7 +157,7 @@
     snap(); deleteItems([b]); render();
     TB.click('[data-act="summary"]');
     const cards = [...document.querySelectorAll('#summary .card')].map(x => x.textContent.replace(/\s+/g, ''));
-    ok(cards.includes('未解決のコメント1'), '集計のカード: ' + cards);
+    ok(cards.includes('コメント未解決1'), '集計のカード: ' + cards);
   });
 
   test('マージ: 行が残るとき、行といっしょに消えたエビデンスも戻る。先に消してあったものは戻さない', async () => {

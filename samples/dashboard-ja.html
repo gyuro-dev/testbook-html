@@ -695,7 +695,7 @@ const EN = {
   '最終更新': 'Last updated',
   '未実施': 'Not run',
   '未実施に戻す': 'Reset to not run',
-  '未解決のコメント': 'Open comments',
+  'コメント未解決': 'Open comments',
   '未解決のコメントあり': 'Has open comments',
   '未解決のコメント（{0}）': 'Open comments ({0})',
   '条件に合う行がありません。': 'No rows match.',
@@ -1150,20 +1150,21 @@ function jsonParts() {
   return w.parts;
 }
 // 自動保存用: 同じものを少しずつ作り、途中で画面に制御を返す（何十万行あっても入力が止まらない）。
-// 作っている途中で編集が入ったら、古い内容を書かないように捨てる（null を返す）
+// 作っている途中で編集が入ったら、古い内容を書かないように捨てる（null を返す）。
+// 途中で別のファイルを開いた（D が替わった）ときも捨てる。そのまま続けると、2つの文書が混ざった中身になる
 async function jsonPartsAsync() {
-  const seq = S.editSeq, w = jsonWriter();
-  w.put(`{"format":"testbook","version":2,"meta":${J(D.meta)}`);
+  const seq = S.editSeq, doc = D, w = jsonWriter();
+  w.put(`{"format":"testbook","version":2,"meta":${J(doc.meta)}`);
   let t0 = performance.now();
   for (const k of COLLS) {
     w.put(`,"${k}":[`);
-    const arr = D[k];
+    const arr = doc[k];
     for (let i = 0; i < arr.length; i++) {
       if (i) w.put(',');
       w.put(jsonOf(k, arr[i]));
       if ((i & 1023) === 1023 && performance.now() - t0 > 10) {
         await new Promise(r => setTimeout(r, 0));
-        if (S.editSeq !== seq) return null;
+        if (S.editSeq !== seq || D !== doc) return null;
         t0 = performance.now();
       }
     }
@@ -1186,8 +1187,11 @@ function captureShell() {
   // 画像の塊を外したあとに残る空行を詰める（保存し直すたびに空行が増えないように）
   SHELL = [html.slice(0, i), html.slice(i + 11).replace(/^<\/script>\s*/, '<\/script>\n')];
 }
-// 保存するファイルの中身。画像は1枚ずつ Blob にしてから並べるので、全部を一度にメモリに載せない
-function fileBlob(parts = jsonParts()) {
+// 保存するファイルの中身。画像は1枚ずつ Blob にしてから並べるので、全部を一度にメモリに載せない。
+// consume: 渡した parts をもう使わないので、書き終えたらすぐ手放してよい（parts を渡さないときは、ここで作った物なので手放す）
+function fileBlob(parts, consume) {
+  const own = !parts;
+  if (own) parts = jsonParts();
   const head = SHELL[0].replace(/<title>[^<]*<\/title>/, () => `<title>${esc(D.meta.title)}</title>`);
   const blobs = [];
   for (const e of D.elements) {
@@ -1197,9 +1201,10 @@ function fileBlob(parts = jsonParts()) {
   }
   const tail = SHELL[1], cut = tail.indexOf(SCRIPT_CLOSE) + SCRIPT_CLOSE.length;
   const out = new Blob([head, '\n', new Blob(parts), '\n', tail.slice(0, cut), '\n', ...blobs, tail.slice(cut)], { type: 'text/html' });
-  out.jsonLen = parts.chars;
-  // Blob が中身を写し終えたので、バイト列はすぐ手放す（GC を待たない）。parts はもう使えない
-  for (const p of parts) if (p.buffer && p.buffer.transfer) p.buffer.transfer(0);
+  // 大きさの上限は文字数で見る（jsonWriter の parts は文字数を持つ。持たない配列なら長さを足す）
+  out.jsonLen = parts.chars ?? parts.reduce((n, p) => n + p.length, 0);
+  // Blob が中身を写し終えたので、バイト列はすぐ手放す（GC を待たない）。呼ぶ側の parts は、頼まれたときだけ
+  if (own || consume) for (const p of parts) if (p.buffer && p.buffer.transfer) p.buffer.transfer(0);
   return out;
 }
 // ファイルを少しずつ読んで、データと画像を取り出す（ファイル全体を1つの文字列にしないので、何 GB でも読める）。
@@ -1250,15 +1255,15 @@ const COLSET = new Set(['columns', 'freeze']);
 /* 時刻: PC の時計がずれていても、一度見たほかの人の時刻より後になるようにする（自分の変更が古い扱いにならないように） */
 let CLOCK = 0;
 const tick = () => (CLOCK = Math.max(now(), CLOCK + 1));
-// sameIndex: 呼ぶ側が索引を直すので、作り置きを捨てなくてよいとき
-function setF(o, k, v, sameIndex) {
+function setF(o, k, v) {
   if (CUR && !APPLYING) CUR.push({ o, k, had: k in o, old: clone(o[k]) });
   const t = tick(), ts = o.ts || (o.ts = {});
   // bt: この値を書いたとき、元にした値の時刻。合わせるとき「相手の値を見たうえで直したのか」を見分けるのに使う
   if (ts[k]) (o.bt || (o.bt = {}))[k] = ts[k]; else if (o.bt) delete o.bt[k];
   if (k === 'verdict' && o.item) tallyDelta(o, o[k] || null, v || null);
+  const was = o[k];
   o[k] = v; ts[k] = t; o.updatedAt = t;
-  if (sameIndex) { /* 索引は呼ぶ側が直す */ }
+  if (recIndexed(o, k, was)) { /* 索引と集計はその場で直した */ }
   else if (k === 'order' && o.sheet !== undefined) S.ordVer++;  // 行の並びだけが変わった
   else if (STRUCT.has(k)) S.ver++;
   else if (COLSET.has(k)) S.colVer++;
@@ -1295,16 +1300,39 @@ function created(o, coll) {
   if (CUR) CUR.push({ o, k: 'deleted', had: true, old: true });
   markDirty();
 }
-// 消化数の集計は作り置きを足し引きして直す（結果を1つ付けるたびに全行を数え直さない）
-function tallyDelta(rec, a, b) {
-  if (a === b || rec.deleted || CACHE.ver !== S.ver) return;
+// 消化数の集計は作り置きを足し引きして直す（結果を1つ付けるたびに全行を数え直さない）。
+// evenDeleted: 削除の印を付けた直後の記録の分を引くとき（印が付いていても数え直す）
+function tallyDelta(rec, a, b, evenDeleted) {
+  if (a === b || (rec.deleted && !evenDeleted) || CACHE.ver !== S.ver) return;
   const it = getItem(rec.item);
   if (!it || it.deleted) return;
-  for (const key of [`tally:${it.sheet}|${rec.run}`, `tally:*|${rec.run}`]) {
+  const inCases = cached('caseIds', () => new Set(caseSheets().map(s => s.id))).has(it.sheet);
+  for (const key of [`tally:${it.sheet}|${rec.run}`, inCases ? `tally:*|${rec.run}` : '']) {
     const t = CACHE.m.get(key);
-    if (!t || (key.startsWith('tally:*') && !caseSheets().some(s => s.id === it.sheet))) continue;
+    if (!t) continue;
     t[a || 'none']--; t[b || 'none']++; t.done = t.ok + t.ng + t.na;
   }
+}
+/* 結果の記録の削除と生き返りは、作り置きを捨てずに、索引（IX.rec / IX.dead）と集計をその場で直す。
+ * 何千行もまとめて結果を付け直すとき、1行ごとに全部を作り直して行数の2乗で遅くならないように。
+ * 削除の印が付いている間の項目・実施回（item / run）は索引に出ないので、変えても何もしなくてよい。
+ * 元に戻す（APPLYING）は1回にまとめて変えるので、今までどおり作り直す（1件ずつ直すより速い）。直したら true */
+function recIndexed(o, k, was) {
+  if (APPLYING || CACHE.ver !== S.ver || CACHE.m.get('ix') !== IX) return false;
+  if (k === 'item' || k === 'run') return !!o.deleted && IX.dead.get(o.id) === o;
+  if (k !== 'deleted' || !o.deleted === !was) return false;
+  if (o.deleted) {
+    const m = IX.rec.get(o.run);
+    if (!m || m.get(o.item) !== o) return false;
+    m.delete(o.item); IX.dead.set(o.id, o);
+    tallyDelta(o, o.verdict || null, null, true);
+    return true;
+  }
+  const m = IX.rec.get(o.run), other = m && m.get(o.item);
+  if (IX.dead.get(o.id) !== o || o.item == null || o.run == null || (other && other !== o)) return false;
+  IX.dead.delete(o.id); recIndexSet(IX, o.item, o.run, o);
+  tallyDelta(o, null, o.verdict || null);
+  return true;
 }
 
 /* 合わせ方: フィールドごとに新しいほうを残す。
@@ -1614,10 +1642,8 @@ function ensureRec(it, runId = S.run) {
   let r = recOf(it.id, runId) || IX.dead.get(id);
   if (!r) { r = { id, item: it.id, run: runId, ts: {}, updatedAt: now() }; D.records.push(r); created(r, 'records'); }
   else if (r.deleted) {
-    // 生き返らせる。索引と集計はここで直す（作り直すと、何千行もまとめて付けるときに1行ごとに全部を作り直すことになる）
-    setF(r, 'deleted', false, true); setF(r, 'item', it.id, true); setF(r, 'run', runId, true);
-    IX.dead.delete(id);
-    tallyDelta(r, null, r.verdict || null);
+    // 生き返らせる。保存して開き直した削除の印には項目と実施回がないので、先に入れてから印を外す（setF が索引と集計を直す）
+    setF(r, 'item', it.id); setF(r, 'run', runId); setF(r, 'deleted', false);
   }
   recIndexSet(IX, it.id, runId, r);
   return r;
@@ -2074,12 +2100,14 @@ function foldSet(sh) {
   if (!s) { try { s = new Set(JSON.parse(lsGet(`testbook.fold.${D.meta.id}.${sh.id}`) || '[]')); } catch { s = new Set(); } S.fold[sh.id] = s; }
   return s;
 }
-function setFold(sh, key, on) {
+// 何グループもまとめて畳む・開くときは、覚えておく場所に1回だけ書く（グループごとに書くと、数千あると遅い）
+function setFolds(sh, keys, on) {
   const s = foldSet(sh);
-  if (on) s.add(key); else s.delete(key);
+  for (const key of keys) if (on) s.add(key); else s.delete(key);
   lsSet(`testbook.fold.${D.meta.id}.${sh.id}`, JSON.stringify([...s]));
   S.foldVer++;
 }
+const setFold = (sh, key, on) => setFolds(sh, [key], on);
 // グループ（大項目の値）ごとの行数。並びが変わったときだけ作り直す
 // 行をグループ（大項目の値）ごとに分ける。グループごとに全行を探し直さないように、1回で分ける
 function byGroup(items, lv) {
@@ -2112,7 +2140,7 @@ function focusNewRow(it) {
  * 検索語に大文字・小文字の区別がなければ（日本語や数字だけなど）、セルの文字を小文字にしなくてよい。
  * U+0307 は、大文字の İ を小文字にしたときに現れる文字で、それ自体には大文字がないので別に見る */
 function rowMatcher(C, q) {
-  const caseless = q.toUpperCase() === q && !q.includes('̇');
+  const caseless = q.toUpperCase() === q && !q.includes('\u0307');
   const has = caseless ? v => (typeof v === 'string' ? v : String(v)).includes(q) : v => String(v).toLowerCase().includes(q);
   const plain = [], other = [];
   for (const c of C) {
@@ -3305,14 +3333,15 @@ function startMarquee(ev, keep) {
   };
   addEventListener('mousemove', mm); addEventListener('mouseup', mu);
 }
-// 選んだ物をまとめて動かす（相対位置を保つ。どれも左上にはみ出さない）
+// 選んだ物を矢印キーで動かす（相対位置を保つ。どれも左上にはみ出さない）。
+// ドラッグと同じく、選んだ画像の上にある印（選んでいないもの）も一緒に動かす
 function moveSel(dx, dy) {
   const list = selList(), b = boxOf(list);
   dx = Math.max(dx, -Math.max(0, b.x)); dy = Math.max(dy, -Math.max(0, b.y));
   if (!dx && !dy) return;
   snap();
   const doms = elDoms();
-  for (const e of list) {
+  for (const e of [...list, ...ridersOf(list)]) {
     if (dx) setF(e, 'x', e.x + dx);
     if (dy) setF(e, 'y', e.y + dy);
     placeDom(doms.get(e.id), e);
@@ -3475,8 +3504,7 @@ function onBoardKey(ev) {
   const step = ev.shiftKey ? 16 : 1;
   const nudge = { ArrowUp: [0, -step], ArrowDown: [0, step], ArrowLeft: [-step, 0], ArrowRight: [step, 0] }[ev.key];
   if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); actions.elDel(); }
-  else if (nudge && multi) { ev.preventDefault(); moveSel(nudge[0], nudge[1]); }
-  else if (nudge) { ev.preventDefault(); snap(); setF(e, 'x', Math.max(0, e.x + nudge[0])); setF(e, 'y', Math.max(0, e.y + nudge[1])); renderBoard(); }
+  else if (nudge) { ev.preventDefault(); moveSel(nudge[0], nudge[1]); }
   else if (ev.key === 'Enter' || ev.key === 'F2') { ev.preventDefault(); if (!multi) startBoardEdit(e.id, e.type === 'table' ? [0, 0] : null); }
   else if (ev.key === 'Escape') selectEl(null);
   else if (mod && ev.key.toLowerCase() === 'd') { ev.preventDefault(); actions.elDup(); }
@@ -3486,9 +3514,11 @@ function onBoardKey(ev) {
 /* ボードの要素のコピー・切り取り・貼り付け（Ctrl+C / Ctrl+X / Ctrl+V）。
  * 同じブラウザの中なら、別のエビデンス票や自由シート、別のファイルにも貼れる。ほかのアプリには文字だけが渡る。 */
 const EL_MIME = 'application/x-testbook-elements';
-// クリップボードに載せる大きさの上限（文字数）。Chrome は 128MB の独自形式を、書くときはエラーを出さないのに読むと空で返す（64MB までは読める。64MB で貼り付けに約 0.5 秒）。
-// 画像を百枚以上選んだときに黙って貼れなくならないよう、これを超えたらこのタブの中に持つ
+// クリップボードに載せる大きさの上限。Chrome は 128MB の独自形式を、書くときはエラーを出さないのに読むと空で返す（64MB までは読める。64MB で貼り付けに約 0.5 秒）。
+// 画像を百枚以上選んだときに黙って貼れなくならないよう、これを超えたらこのタブの中に持つ。
+// 文字数とバイト数（UTF-8）の両方で見る。日本語は1文字が3バイトなので、文字数だけだと 64MB を超えうる
 const CLIP_MAX = 32 * 1024 * 1024;
+const clipFits = s => s.length <= CLIP_MAX && (s.length * 3 <= CLIP_MAX || new Blob([s]).size <= CLIP_MAX);
 const elPlain = e => e.type === 'text' ? (e.text || '') : e.type === 'table' ? (e.cells || []).map(r => r.join('\t')).join('\n') : e.name || '';
 function copyElement(cd, cut) {
   const list = selList();
@@ -3503,7 +3533,7 @@ function copyElement(cd, cut) {
   });
   // 画像が多いと JSON の文字列の上限（約 512MB）も超えるので、先に大きさを見てから JSON にする
   const json = size > CLIP_MAX ? null : JSON.stringify(items);
-  if (json && json.length <= CLIP_MAX) {
+  if (json && clipFits(json)) {
     cd.setData(EL_MIME, json);
     S.elClip = json;
   } else {
@@ -3531,25 +3561,31 @@ function pasteElements(clip) {
   if (list && list === S.elClip && list.items) list = list.items.map(cloneClip);
   if (!Array.isArray(list) || !list.length) return false;
   const owner = boardOwner(), p = nextPos(owner, true);
-  list = list.filter(o => o && typeof o === 'object');
-  // 2つ以上なら、全体の左上を置く場所に合わせて、相対位置を保つ
-  let ox = 0, oy = 0;
-  if (list.length > 1) {
-    ox = Infinity; oy = Infinity;
-    for (const o of list) { const lw = o.type === 'line' ? Math.min(0, num(o.w)) : 0, lh = o.type === 'line' ? Math.min(0, num(o.h)) : 0; ox = Math.min(ox, num(o.x) + lw); oy = Math.min(oy, num(o.y) + lh); }
+  // クリップボードの中身もファイルと同じ検査を通す（ID や置き場所などは持ち込ませない）
+  const ok = [];
+  for (const o of list) {
+    if (!o || typeof o !== 'object') continue;
+    const { id, ts, bt, updatedAt, deleted, z, ...rest } = o;
+    const props = { ...rest, owner, by: S.me, at: now() };
+    if (cleanEl(props)) ok.push(props);
   }
+  if (!ok.length) return false;
+  // 2つ以上なら、全体の左上を置く場所に合わせて、相対位置を保つ。左上は検査を通った物だけで求める（落とした物の位置でずれないように）
+  let ox = 0, oy = 0;
+  if (ok.length > 1) {
+    ox = Infinity; oy = Infinity;
+    for (const o of ok) { const lw = o.type === 'line' ? Math.min(0, num(o.w)) : 0, lh = o.type === 'line' ? Math.min(0, num(o.h)) : 0; ox = Math.min(ox, num(o.x) + lw); oy = Math.min(oy, num(o.y) + lh); }
+  }
+  snap();
   const made = [];
   let top = maxZ(owner);
-  for (const o of list) {
-    // クリップボードの中身もファイルと同じ検査を通す（ID や置き場所などは持ち込ませない）
-    const { id, ts, bt, updatedAt, deleted, z, ...rest } = o;
-    const props = { ...rest, owner, x: list.length > 1 ? p.x + num(o.x) - ox : p.x, y: list.length > 1 ? p.y + num(o.y) - oy : p.y, by: S.me, at: now() };
-    if (!cleanEl(props)) continue;
-    if (!made.length) snap();
+  for (const props of ok) {
+    // 極端な座標（1e308 など）の差は無限大になりうるので、計算した位置も数に直す
+    props.x = ok.length > 1 ? num(p.x + num(props.x) - ox, p.x) : p.x;
+    props.y = ok.length > 1 ? num(p.y + num(props.y) - oy, p.y) : p.y;
     props.z = ++top;
     made.push(addEl(owner, props.type, props));
   }
-  if (!made.length) return false;
   selectMade(made); renderBoard();
   return true;
 }
@@ -3854,11 +3890,12 @@ function renderSummary() {
     <tr><td>${c.total}</td><td>${c.ok}</td><td class="${c.ng ? 'ng' : ''}">${c.ng}</td><td>${c.hold}</td><td>${c.na}</td><td>${c.none}</td></tr></table>`;
   }
   const trend = trendData(allItems, S.run);
-  let cmOpenAll = 0;  // 削除した行に残ったコメントは数えない
+  // 未解決のコメントがある行の数。ほかのカードと同じく行で数える（押すと開く表の行数と合うように）。削除した行に残ったコメントは数えない
+  let cmOpenAll = 0;
   buildIndex();
-  for (const [id, l] of IX.cm) {
+  for (const id of IX.cm.keys()) {
     const it = getItem(id);
-    if (it && !it.deleted && SH.some(s => s.id === it.sheet)) for (const c of l) if (!c.done) cmOpenAll++;
+    if (it && !it.deleted && IX.cmOpen.get(id) && SH.some(s => s.id === it.sheet)) cmOpenAll++;
   }
   const goCard = (cls, label, n, vf) => `<div class="card${cls ? ' ' + cls : ''}${n ? ' sgo' : ''}"${n ? ` role="button" tabindex="0"${goAttr(n, vf)}` : ''}><div class="k">${label}</div><div class="v">${n}</div></div>`;
   $('#summary').innerHTML = `
@@ -3871,7 +3908,7 @@ function renderSummary() {
       ${goCard('', _t('未実施'), t.none, 'none')}
       ${goCard('', _t('証跡あり'), evAll.ev, 'ev')}
       ${goCard(evAll.ok - evAll.okEv ? 'ng' : '', _t('OK なのに証跡なし'), evAll.ok - evAll.okEv, 'okNoev')}
-      ${goCard(cmOpenAll ? 'hold' : '', _t('未解決のコメント'), cmOpenAll, 'cmOpen')}
+      ${goCard(cmOpenAll ? 'hold' : '', _t('コメント未解決'), cmOpenAll, 'cmOpen')}
     </div>
     <h3>${_t('シート・大項目ごと（{0}）', esc(runName(S.run)))}</h3>
     <table class="st">${head}${byPart}${row(_t('合計'), t)}</table>
@@ -4093,22 +4130,26 @@ async function autoTick() {
   if (perm) await autoSave();
   else if (S.editSeq !== S.draftSeq) await saveDraft();
 }
+// 途中で別のファイルを開いたら（D が替わったら）、その先はやめる。新しく開いた文書の状態（保存済みか、下書き、最終更新時刻）には触らない
 async function autoSave() {
-  const h = S.handle;
+  const h = S.handle, doc = D;
   S.saving = true;
   try {
     const f0 = await h.getFile();
+    if (D !== doc) return;
     if (f0.size && f0.lastModified !== S.lastMod) {
-      const st = await pullFrom(f0);
+      const st = await pullFrom(f0, doc);
       if (st && (st.n || st.conflicts)) { render(); toast(_t('ほかの人が保存した変更を取り込みました: {0}', mergeMsg(st))); }
     }
     const seq = S.editSeq, parts = await jsonPartsAsync();
-    if (!parts) return;  // 作っている途中で編集が入った。次の機会に
-    const blob = fileBlob(parts);
+    if (!parts) return;  // 作っている途中で編集が入った（または別のファイルを開いた）。次の機会に
+    const blob = fileBlob(parts, true);
     if (blob.jsonLen > MAX_JSON) return;  // 大きすぎるときは手動の保存で知らせる
     await writeTo(h, blob);
-    S.lastMod = (await h.getFile()).lastModified;
-    if (S.editSeq === seq) { S.dirty = false; S.savedAt = S.autoSavedAt = now(); dropDraft(); }
+    const lastMod = (await h.getFile()).lastModified;
+    if (D !== doc) return;
+    S.lastMod = lastMod;
+    if (S.editSeq === seq) { S.dirty = false; S.savedAt = S.autoSavedAt = now(); dropDraft(doc.meta.id); }
     renderStatus();
   } catch { /* 書けないとき（ファイルが使用中など）は次の機会に。手動の保存なら理由が出る */ }
   finally { S.saving = false; }
@@ -4116,11 +4157,11 @@ async function autoSave() {
 async function saveDraft() {
   S.saving = true;
   try {
-    const seq = S.editSeq, parts = await jsonPartsAsync();
+    const seq = S.editSeq, doc = D, parts = await jsonPartsAsync();
     if (!parts) return;
     // 下書きは保存するファイルと同じ形（画像は tb-blob の塊）で置く。JSON だけだと貼った画像の中身が入らない
-    await idb('drafts', 'readwrite', st => st.put({ id: D.meta.id, title: D.meta.title, at: now(), clock: CLOCK, json: fileBlob(parts) }, D.meta.id));
-    S.draftSeq = seq;
+    await idb('drafts', 'readwrite', st => st.put({ id: doc.meta.id, title: doc.meta.title, at: now(), clock: CLOCK, json: fileBlob(parts, true) }, doc.meta.id));
+    if (D === doc) S.draftSeq = seq;
   } catch { /* IndexedDB が使えない環境（プライベートモードなど）では下書きを置かない */ }
   finally { S.saving = false; }
 }
@@ -4194,10 +4235,11 @@ async function deleteDraft(d) {
   return true;
 }
 // 読めないときは例外のまま返す。合わせられないまま保存すると、ほかの人の変更を消してしまうので、呼ぶ側で保存を止める
-async function pullFrom(f) {
+// doc: 合わせる先。読んでいる間に別のファイルを開いたら（D が替わったら）、合わせない
+async function pullFrom(f, doc = D) {
   if (!f.size) return null;
   const other = await readBook(f);
-  return other && other.meta.id === D.meta.id ? mergeInto(D, other) : null;
+  return other && D === doc && other.meta.id === doc.meta.id ? mergeInto(doc, other) : null;
 }
 // 共有フォルダで開いているとき、ほかの人が保存したらそれを合わせて表示する
 async function watchFile() {
@@ -4543,7 +4585,7 @@ const actions = {
     for (const c of sheetCols(sh)) delete S.cf[c.id];
     if (tr && tr.dataset.g !== undefined && lv) S.cf[lv.id] = new Set([tr.dataset.g]);
     S.cfVer++;
-    if (lv) for (const k of [...foldSet(sh)]) setFold(sh, k, false);
+    if (lv && foldSet(sh).size) setFolds(sh, [...foldSet(sh)], false);
     clearTimeout(S.qTimer);
     S.q = ''; S.vf = vf; S.view = 'sheet'; S.sheet = sh.id; S.r = 0; S.curId = null; S.bSel = null;
     render(); focusMain();
@@ -4577,7 +4619,7 @@ const actions = {
   },
   foldAll(btn) {
     const sh = curSheet(), g = groupsOf(sh), on = btn.dataset.on === '1';
-    for (const [k, n] of g) if (n > 1 || !on) setFold(sh, k, on);
+    setFolds(sh, [...g].filter(([, n]) => n > 1 || !on).map(([k]) => k), on);
     renderGrid(); paintCursor(); focusMain();
   },
   colFreeze(btn) { hidePop(); snap(); setF(curSheet(), 'freeze', Number(btn.dataset.n)); renderGrid(); },

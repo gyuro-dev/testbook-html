@@ -40,7 +40,7 @@
     TB.input('#vf', '', 'change');
     TB.click('[data-act="summary"]');
     const cards = [...document.querySelectorAll('#summary .card')].map(x => x.textContent.replace(/\s+/g, ''));
-    ok(cards.includes('未解決のコメント0'), '集計のカード: ' + cards);
+    ok(cards.includes('コメント未解決0'), '集計のカード: ' + cards);
     TB.click('#tabs .tab[data-act="sheet"]');
     TB.click(pane().querySelector('[data-act="cmDone"]')); await sleep(0);
     eq(c.done, false, '戻せる');
