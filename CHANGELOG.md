@@ -23,6 +23,10 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 - Setting results or pasting testers on many rows no longer freezes the page when those rows' results had been removed (for example after `Ctrl+Z`, or in a file saved after removing them). Each row rebuilt every index; at 500,000 rows, 500 rows took about 100 s and now take 10 ms.
 - Trying to resize a column could press the "＋" that adds a column instead, because the button covered the middle of the resize handle. The "＋" now sits at the lower corner of the header, and the right edge of a header resizes the column at any height. In the No column, which has no handle, the "＋" stays where it was.
 - After scrolling sideways, pointing at a column header that is partly hidden under the frozen columns no longer draws it over the frozen headers. The frozen headers stay on top, and the visible part of the header still shows its "＋" and resize handle.
+- Opening another file while an autosave or a draft was still being written could write a mix of both files into the old file, mark the new file as saved and remove its draft. The autosave now stops when the open file changes.
+- The "Open comments" card in the summary counted comments, while clicking it showed rows. It now counts rows, so the number matches the rows that open. In Japanese the card is now called "コメント未解決".
+- Moving board elements with the arrow keys now also moves the marks on a selected image, as dragging does. This also applies when one image is selected.
+- Very large copies of mostly Japanese text could exceed the size Chrome can read back from the clipboard, so pasting did nothing. The limit now counts bytes as well as characters.
 
 ## [0.2.5] - 2026-11-04
 

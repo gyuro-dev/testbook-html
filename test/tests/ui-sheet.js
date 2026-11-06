@@ -148,7 +148,7 @@
     TB.click('[data-act="summary"]');
     eq(S.view, 'summary'); ok(!document.querySelector('#summary').hidden);
     const cards = [...document.querySelectorAll('#summary .card')].map(c => c.textContent.replace(/\s+/g, ''));
-    eq(cards, ['項目数2', '消化率（1回目）50%', 'OK1', 'NG0', '保留0', '未実施1', '証跡あり0', 'OKなのに証跡なし1', '未解決のコメント0'], 'カード');
+    eq(cards, ['項目数2', '消化率（1回目）50%', 'OK1', 'NG0', '保留0', '未実施1', '証跡あり0', 'OKなのに証跡なし1', 'コメント未解決0'], 'カード');
     const rows = [...document.querySelectorAll('#summary tr')].map(tr => [...tr.children].map(td => td.textContent.trim()).join('|'));
     ok(rows.some(r => r.startsWith('A|1|1|0')) && rows.some(r => r.startsWith('B|1|0|0')), '大項目ごと: ' + rows.join(' / '));
     ok(rows.some(r => r.startsWith('田中|1|0')), '実施者ごと');
