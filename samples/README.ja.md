@@ -4,7 +4,7 @@
 
 testbook で作った、すぐに開けるサンプルのファイルです。\
 下のリンクを押すと、ブラウザでそのまま開けます（GitHub の一覧からファイルを開くと、HTML のソースが表示されます）。\
-手元に置きたいときは、開いたページで `Ctrl+S` を押すと、ファイルとして保存できます。
+手元に置くときは、開いたページで `Ctrl+S` を押して保存します。
 
 | ファイル | 内容 |
 | --- | --- |
@@ -12,8 +12,8 @@ testbook で作った、すぐに開けるサンプルのファイルです。\
 | [api-ja.html](https://gyuro-dev.github.io/testbook-html/samples/api-ja.html) / [api-en.html](https://gyuro-dev.github.io/testbook-html/samples/api-en.html) | API を対象にした、小さな2つ目の試験です。2つの実施回と、ログを置いたエビデンス票が入っています。shop のファイルに別の試験ファイルとして取り込む（シートごと取り込む）操作を試すのにも使えます。 |
 | [dashboard-ja.html](https://gyuro-dev.github.io/testbook-html/samples/dashboard-ja.html) / [dashboard-en.html](https://gyuro-dev.github.io/testbook-html/samples/dashboard-en.html) | 自由シートだけのファイルです。上の2つの試験の集計カードと、それらを合計した「全部の合計」のカードを置いています。`shop-*.html` や `api-*.html` をこのシートにもう一度ドラッグすると、数字が最新になります。 |
 
-ファイル名が `-ja` のものは内容が日本語、`-en` のものは内容が英語です。\
-画面の言葉はブラウザの言語設定に合わせて表示し、⋯ メニューで切り替えられます。
+`-ja` のファイルは内容が日本語、`-en` は英語です。\
+画面の言葉はブラウザの言語設定に合わせ、⋯ メニューで切り替えられます。
 
 これらのファイルは、自動試験（`test/tests/samples.js`）が `testbook.html` から作ります。\
 今のアプリから作ったものと内容が違うと、試験が失敗します。\
