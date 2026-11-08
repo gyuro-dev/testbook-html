@@ -5,9 +5,9 @@ English | [日本語](README.ja.md)
 A tool that keeps test cases, results and evidence in **one HTML file**.
 Open the file in a browser and the case table, the results, the screenshots with red frames and arrows, and the summary are all there.
 To hand it over, send that one file.
-It has what testing needs: results per run, evidence boards, merging other people's copies, and a summary.
+It also keeps results per run and merges other people's copies into one file.
 
-**No internet connection and no external libraries.** It runs fully offline, also in closed networks, and your data never leaves the file and your browser.
+**No internet connection and no external libraries.** It runs fully offline, even in closed networks, and your data never leaves the file and your browser.
 
 ![The case table with the detail panel](docs/images/table-en.png)
 
@@ -33,10 +33,10 @@ The UI is in English or Japanese. It follows the browser language, and "⋯ → 
 
 - **Browsers**: overwriting the file works in Edge and Chrome. Other browsers show "This browser cannot overwrite files" at the top and download a copy when you save. If your default browser is a different one, right-click the file and choose "Open with" → Edge or Chrome.
 - **Permission to overwrite**: after the browser is restarted, the first save may ask whether the page may edit the file. Until you allow it, autosave does not overwrite the file: the top bar says "save with Ctrl+S", and changes are kept as a draft in the browser.
-- **Copied files**: when you open a copy of a test file (copied or renamed), the first save asks where to save again, so the original file is never overwritten by surprise.
+- **Copied files**: when you open a test file that was copied or renamed, the first save asks where to save again, so the original file is never overwritten by surprise.
 - **Autosave and drafts**: "⋯ → Autosave (overwrite when typing stops)" turns autosave on or off. Changes not yet saved are kept as a draft inside the browser and offered back the next time. The list shown when you open an empty page, or "⋯ → Unsaved drafts…", lets you open or delete the drafts that are left. If you close the "Unsaved changes" prompt with Esc, the same list lets you apply that draft until you edit the test. This works only in the same browser on the same PC, and clearing the browser's data clears the drafts too.
-- **Several people**: everyone starts from the same test file (one somebody saved and handed out). Files that each person started from an empty `testbook.html` are different tests: importing one adds its sheets as they are, and only runs with the same name (such as "Run 1") are treated as the same run.
-- **File size**: many images make a large file. When it no longer fits in an e-mail, hand it over through a shared folder. For big logs or videos, write the path as text instead. On a PC with 8 GB of memory, stay under about 1 GB for image-heavy tests and about 300,000 rows for row-heavy ones.
+- **Several people**: everyone starts from the same test file (one somebody saved and handed out). Files that each person started from an empty `testbook.html` are different tests, and importing one adds its sheets as they are (see [Working with several people](#working-with-several-people)).
+- **File size**: many images make a large file. When it no longer fits in an e-mail, hand it over through a shared folder. For big logs or videos, write down where they are instead. On a PC with 8 GB of memory, stay under about 1 GB for image-heavy tests and about 300,000 rows for row-heavy ones.
 - **Moving to a new version**: a test file carries the app inside, so it keeps running the version it was saved with. To move it to a new version, open the new `testbook.html`, choose the test file with "Open", and save. Files saved with version 0.1 or later will keep opening in later versions.
 - **Files from others**: a test file carries the app inside, so opening one by double-click runs whatever app it carries. For a file whose origin you are unsure of, open your own `testbook.html` and bring the file in with "Import" instead: data imported that way is checked and cannot run script.
 - **Not yet**: board zoom and importing spreadsheet files directly (copy the table and press `Ctrl+V` instead).
@@ -51,7 +51,7 @@ The UI is in English or Japanese. It follows the browser language, and "⋯ → 
 
 ### Case sheets
 
-The most used operations come first. All keys are listed under "Keys" below.
+The most used operations come first. All keys are listed under [Keys](#keys).
 
 - **Pasting tables**: copy a table from another document and press `Ctrl+V`: the rows are pasted as cases. "OK", "NG", "Hold" and "N/A" (or the Japanese words) land in the result column with tester, date and history.
 - **Results**: in the result column `1` OK, `2` NG, `3` Hold, `4` N/A, `0` back to not run. With several rows selected, they all get the result. N/A rows turn grey, held rows yellow. Tester and date are filled in automatically; hand-edited values are not overwritten when the result is set again.
@@ -76,7 +76,7 @@ The most used operations come first. All keys are listed under "Keys" below.
 - **Folding and contents**: the first row of each top-level group (the first level column) shows ▾; click it to fold the group (only its first row stays, with the count). "Contents" in the toolbar lists the groups, jumps to one, and folds or unfolds all. Fold state is not saved in the file; the browser remembers it.
 - **Merged display**: a cell with the same value as the row above is drawn as if merged. Level columns only merge when every level to their left is also the same (the same group), so merging never crosses a group boundary. It can be switched off per column.
 - **Frozen columns**: by default No and the leading level columns stay put when scrolling sideways. Change it with "Freeze columns up to here" in a column header.
-- **Remark and issue links**: set a URL template in "⋯ → Issue tracker link…" (for example `https://github.com/example/shop/issues/{n}`, or `.../browse/{key}` for Jira) and `#128` or `PROJ-12` in remarks and other cells become links. URLs are always links.
+- **Issue links**: set a URL template in "⋯ → Issue tracker link…" (for example `https://github.com/example/shop/issues/{n}`, or `.../browse/{key}` for Jira) and `#128` or `PROJ-12` in remarks and other cells become links. URLs starting with `https://` are links without any setting.
 
 ### Evidence boards
 
@@ -271,7 +271,7 @@ TB.test('merge: two people editing different cells keeps both', () => {
 - **Golden tests** (`golden.js`) compare the sample's saved data, CSV, rendered table, summary and conflict wording with known-good files. The harness fixes the clock and the random generator, so the output is identical every time. Dates are Japan time; `run.sh` and GitHub Actions set TZ accordingly.
 - **Language tests** (`i18n.js`) collect every `_t('…')` key from the app source, check that the English table has all of them with the same placeholders and no unused entries, and draw the app in English to check that no Japanese is left.
 - **Sample tests** (`samples.js`) build the files in `samples\` from the current app and compare them with the committed ones, so the samples never fall behind the app.
-- **Document tests** (`docs.js`) check that `APP_VERSION` matches this CHANGELOG, that the English and Japanese READMEs have the same headings, and that the test count above is current.
+- **Document tests** (`docs.js`) check that `APP_VERSION` matches the CHANGELOG, that the English and Japanese READMEs have the same headings, and that the test count above is current.
 
 To add a test, put a `.js` in `test\tests\` or add `TB.test(name, fn)` to an existing file. Every test starts from an empty document, and dialogs answer "OK" without appearing (replace `window.dialog` to choose the answer).
 
