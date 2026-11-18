@@ -216,9 +216,9 @@
     ok(TB.toasts().some(s => s.includes('下書きを読めませんでした')), '読めなければお知らせ');
     ok(await draftOf('d_bad'), '読めなくても勝手には消さない');
     p = (async () => draftsDialog(await liveDrafts()))(); await waitDlg();
-    // フォーカスが一覧の外（data-r を持つ表のセルなど）にあるときの Enter は何もしない
+    // 一覧の外（data-r を持つ表のセルなど）にはフォーカスが移らない
     const outside = document.createElement('button'); outside.dataset.r = '3'; document.body.appendChild(outside); outside.focus();
-    TB.key(outside, 'Enter'); outside.remove();
+    ok(document.activeElement !== outside && TB.dlg().contains(document.activeElement), '外にフォーカスは移らない'); outside.remove();
     ok(TB.dlg() && rowTitles().length === 1, '一覧のまま');
     TB.dlg().querySelector('[data-r="del:0"]').focus();
     TB.key(document.activeElement, 'Enter');  // 削除（確認が出る）

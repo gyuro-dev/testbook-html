@@ -6,6 +6,12 @@ The version shown in the app (⋯ menu) and `APP_VERSION` in `testbook.html` mus
 
 ## [Unreleased]
 
+### Changed
+
+- Dialogs (confirmations, name prompts, the draft list and the conflict list) are now native modal dialogs. While one is open, the rest of the page cannot be clicked or reached with `Tab`, and screen readers announce the dialog by its title. Keys, buttons and clicking outside work as before.
+- In dark mode, the parts the browser draws itself (scrollbars, check boxes, drop-down lists, links in cells) are dark as well. Printing stays light.
+- Messages at the bottom of the screen ("Saved" and so on) are read out by screen readers, and they stay visible above an open dialog.
+
 ## [0.3.0] - 2026-11-06
 
 ### Added

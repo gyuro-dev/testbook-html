@@ -174,12 +174,12 @@
     TB.dlg().querySelector('[data-r="0"]').focus();
     TB.key(document.activeElement, 'Enter');
     eq(await p, null, 'キャンセルにいれば実行しない');
-    // 窓の外（表のセルやボタン）にフォーカスが出ているとき
+    // 窓は showModal() で開くので、窓の外（表のセルやボタン）にはフォーカスが移らない
     p = open(); await sleep(0);
     const outside = document.querySelector('[data-act="save"]');
     outside.focus();
-    TB.key(outside, 'Enter');
-    ok(TB.dlg(), '閉じない');
+    ok(document.activeElement !== outside && TB.dlg().contains(document.activeElement), '外にフォーカスは移らない');
+    ok(document.querySelector('.dlg-back').matches(':modal'), 'モーダルで開く');
     TB.dlg().querySelector('[data-r="1"]').focus();
     TB.key(document.activeElement, 'Enter');
     eq(await p, true, '窓に戻せば OK');
@@ -196,6 +196,34 @@
     document.activeElement.blur();
     TB.key(document.body, 'Enter');
     eq(await p, true, 'フォーカスがなければ OK');
+  });
+
+  test('ダイアログ: 窓の名前は見出し。戻る操作（cancel）でも閉じる。開いている間のトーストは窓の上に出て、読み上げの対象になる', async () => {
+    window.dialog = TB.realDialog;
+    eq(getComputedStyle(document.documentElement).colorScheme, 'light dark', 'ブラウザが描く部品も OS の明暗に合わせる');
+    let p = dialog({ title: '名前' }); await sleep(0);
+    const back = document.querySelector('.dlg-back');
+    eq(document.getElementById(back.getAttribute('aria-labelledby')).textContent, '名前', '見出しが窓の名前');
+    toast('お知らせ');
+    const t = document.querySelector('#toast');
+    eq(t.getAttribute('role'), 'status', 'トーストは読み上げの対象');
+    ok(t.matches(':popover-open'), 'トーストは最前面に出る');
+    back.dispatchEvent(new Event('cancel', { cancelable: true }));
+    eq(await p, null, 'cancel はキャンセル');
+    eq(document.querySelectorAll('.dlg-back').length, 0, '窓は消える');
+    // 先に出ていたトーストも、あとから開いた窓の下に隠れない
+    // 最前面（top layer）はあとから出したものが上に重なる。窓を出したあとにトーストを出し直していれば、トーストが上
+    // （窓の外はクリックを受けないので、elementFromPoint では重なりを調べられない）
+    toast('先のお知らせ');
+    let reopened = 0;
+    const onToggle = e => { if (e.newState === 'open') reopened++; };
+    t.addEventListener('beforetoggle', onToggle);
+    p = dialog({ title: '後の窓' });
+    t.removeEventListener('beforetoggle', onToggle);
+    ok(document.querySelector('.dlg-back:modal') && t.matches(':popover-open'), '窓もトーストも最前面');
+    eq(reopened, 1, '窓を開いたあとにトーストを出し直す');
+    TB.key(document.activeElement, 'Escape');
+    eq(await p, null);
   });
 
   test('名前: 名前が未設定なら、結果を付ける前に名前を聞く', async () => {

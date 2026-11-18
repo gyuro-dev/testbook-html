@@ -2,15 +2,18 @@
 <html lang="ja"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <meta http-equiv="Content-Security-Policy" content="script-src 'unsafe-inline' file:; connect-src 'none'; img-src blob: data:; media-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Little Shop integration test</title>
 <style>
 :root{
+  color-scheme:light dark;  /* スクロールバーやチェックボックスなど、ブラウザが描く部品も OS の明暗に合わせる */
   --bg:#f5f6f8; --panel:#fff; --line:#e4e7eb; --line2:#d3d8de; --text:#1d2330; --muted:#6b7380;
   --accent:#2f6fde; --accent-weak:#e8f0fd; --head:#f1f3f6; --cur-row:#f2f6ff; --hover:#f3f5f8;
   --ok:#17804a; --ok-bg:#e1f4e8; --ng:#cc3434; --ng-bg:#fde6e6; --hold:#a86a10; --hold-bg:#fcf1d8;
   --na:#6b7380; --na-bg:#eceef1; --shadow:0 6px 24px rgba(20,30,50,.16); --dot:#e3e6ea; --row-na:#eef0f3; --row-hold:#fff7e0; --c-red:#d32f2f; --c-blue:#1565c0; --c-green:#2e7d32; --c-orange:#e65100; --c-gray:#80868f;
 }
+:root[data-theme="light"]{color-scheme:light}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#14171c; --panel:#1b1f26; --line:#2a3039; --line2:#373e49; --text:#e3e6eb; --muted:#8c94a2;
@@ -311,6 +314,7 @@ table.st{border-collapse:collapse;background:var(--panel);border:1px solid var(-
   body.printing>#app,body.printing>#pop,body.printing>#toast,body.printing>.dlg-back{display:none!important}
   body.printing #report{display:block}
   body.printing{background:#fff}
+  :root{color-scheme:light}  /* 紙は白いので、ブラウザが描く部品も明るい色で印刷する */
   @page{margin:14mm}
 }
 
@@ -326,7 +330,11 @@ table.st{border-collapse:collapse;background:var(--panel);border:1px solid var(-
 .lightbox{position:fixed;inset:0;z-index:300000;background:rgba(10,12,16,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
 .lightbox img{max-width:100%;max-height:calc(100% - 40px);box-shadow:var(--shadow);background:#fff}
 .lightbox .cap{color:#dde;margin-top:10px;font-size:12px}
-.dlg-back{position:fixed;inset:0;z-index:400000;background:rgba(10,12,16,.35);display:grid;place-items:center;padding:16px}
+/* .dlg-back は showModal() で開く <dialog>。画面いっぱいに広げて、暗い背景もこの要素で塗る */
+.dlg-back{position:fixed;inset:0;z-index:400000;background:rgba(10,12,16,.35);display:grid;place-items:center;padding:16px;
+  width:auto;height:auto;max-width:none;max-height:none;margin:0;border:0;color:inherit;overscroll-behavior:contain}
+.dlg-back:not([open]){display:none}
+.dlg-back::backdrop{background:transparent;overflow:hidden;overscroll-behavior:contain}
 .dlg{background:var(--panel);border-radius:12px;box-shadow:var(--shadow);padding:18px;width:min(420px,100%)}
 .dlg h4{margin:0 0 8px;font-size:15px}
 .dlg p{margin:0 0 12px;white-space:pre-wrap;color:var(--muted)}
@@ -338,7 +346,8 @@ table.st{border-collapse:collapse;background:var(--panel);border:1px solid var(-
 .dlg-row>div{flex:1;min-width:0}
 .dlg-row b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dlg-row .muted{font-size:12px}
-#toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);z-index:500000;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+#toast{position:fixed;inset:auto auto 36px 50%;transform:translateX(-50%);z-index:500000;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;
+  margin:0;border:0;padding:0;background:none;color:inherit;overflow:visible}  /* popover の既定の見た目を消す */
 #toast div{background:#222833;color:#fff;padding:8px 14px;border-radius:8px;box-shadow:var(--shadow);font-size:12px;animation:tin .15s ease-out}
 #toast div.err{background:var(--ng)}
 @keyframes tin{from{opacity:0;transform:translateY(6px)}}
@@ -1011,10 +1020,19 @@ function fmt(ts, withYear) {
 function fmtSize(n) { return n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB'; }
 function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch { /* 保存できない環境でも動かす */ } }
+// トーストは popover で最前面に出す。ダイアログ（showModal）もあとから最前面に出るので、そのたびに出し直していちばん上に重ねる
+function raiseToast() {
+  const t = $('#toast');
+  if (!t || !t.showPopover) return;
+  if (t.matches(':popover-open')) t.hidePopover();
+  t.showPopover();
+}
 function toast(msg, kind) {
   const el = document.createElement('div');
   el.textContent = msg; if (kind) el.className = kind;
-  $('#toast').appendChild(el);
+  const t = $('#toast');
+  if (t.showPopover && (!t.matches(':popover-open') || document.querySelector('dialog:modal'))) raiseToast();  // popover の無いブラウザでは今までどおり z-index で重ねる
+  t.appendChild(el);
   setTimeout(() => el.remove(), kind === 'err' ? 5000 : 2600);
 }
 function download(name, blob) {
@@ -1715,11 +1733,25 @@ function afterChange() {
 // input: 1つの入力欄（答えはその文字）。inputs: [{ label, value }] で何個か（答えは文字の配列）。どちらもなければ true / null
 // rows: 行の HTML。行の中の data-r のボタンを押すと、その値が答えになる。ok を空にすると OK のボタンは出ない
 // cancelAnswer: キャンセルのボタンの答え。Esc や窓の外のクリック（答えは null）と分けたいときに使う
+// 窓は <dialog> を showModal() で開く。後ろの画面は操作できなくなり、Tab でもフォーカスが外に出ない
+// 画面いっぱいの <dialog> が暗い背景を兼ねる（外のクリックは e.target === back で分かる）
+let dlgSeq = 0;
+function openModal(back, title) {
+  const h = back.querySelector('h4');
+  if (h) { h.id = 'dlg-t' + (++dlgSeq); back.setAttribute('aria-labelledby', h.id); }
+  else back.setAttribute('aria-label', title);
+  document.body.appendChild(back);
+  showModal(back);
+}
+function showModal(back) {
+  if (back.showModal) back.showModal(); else back.setAttribute('open', '');
+  if ($('#toast') && $('#toast').childElementCount) raiseToast();  // 出ているトーストを窓の下に隠さない
+}
 function dialog({ title, message = '', input = null, inputs = null, rows = '', ok = 'OK', cancel = _t('キャンセル'), cancelAnswer = '0', danger = false }) {
   return new Promise(res => {
-    const back = document.createElement('div');
+    const back = document.createElement('dialog');
     back.className = 'dlg-back';
-    back.innerHTML = `<div class="dlg" role="dialog"><h4>${esc(title)}</h4>${message ? `<p>${esc(message)}</p>` : ''}
+    back.innerHTML = `<div class="dlg"><h4>${esc(title)}</h4>${message ? `<p>${esc(message)}</p>` : ''}
       ${input != null ? `<input type="text" value="${esc(input)}">` : ''}
       ${inputs ? inputs.map((f, i) => `<label class="fl" style="margin-bottom:10px">${esc(f.label)}${f.options
         ? `<select data-i="${i}">${f.options.map(([v, l]) => `<option value="${esc(v)}"${v === f.value ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
@@ -1728,7 +1760,8 @@ function dialog({ title, message = '', input = null, inputs = null, rows = '', o
       <div class="row">${cancel ? `<button data-r="${esc(cancelAnswer)}">${esc(cancel)}</button>` : ''}${ok ? `<button data-r="1" class="${danger ? 'danger' : 'primary'}">${esc(ok)}</button>` : ''}</div></div>`;
     const inp = back.querySelector('input');
     const answer = () => inputs ? [...back.querySelectorAll('[data-i]')].map(i => i.value) : inp ? inp.value : true;
-    const done = r => { back.remove(); document.removeEventListener('keydown', key, true); res(r === '1' ? answer() : r === '0' ? null : r); setTimeout(focusMain); };
+    let closed = false;
+    const done = r => { if (closed) return; closed = true; back.remove(); document.removeEventListener('keydown', key, true); res(r === '1' ? answer() : r === '0' ? null : r); setTimeout(focusMain); };
     const key = e => {
       if (e.isComposing) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done('0'); }
@@ -1741,8 +1774,10 @@ function dialog({ title, message = '', input = null, inputs = null, rows = '', o
       }
     };
     back.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r); else if (e.target === back) done('0'); });
+    // Esc はふつう上の key で閉じる。スマホの戻る操作など、それ以外の閉じ方もキャンセルにする
+    back.addEventListener('cancel', e => { e.preventDefault(); done('0'); });
     document.addEventListener('keydown', key, true);
-    document.body.appendChild(back);
+    openModal(back, title);
     (inp || back.querySelector('input[data-i], select[data-i]') || (rows ? back.querySelector('.dlg-rows .primary, [data-r="0"]') : back.querySelector('[data-r="1"]'))).focus();
     if (inp) inp.select();
   });
@@ -1781,7 +1816,7 @@ function buildSkeleton() {
   <section class="summary" id="summary" hidden></section>
   <footer class="foot" id="foot"></footer>
   <div id="pop" hidden></div>
-  <div id="toast"></div>
+  <div id="toast" role="status" popover="manual"></div>
   <input type="file" id="filein" hidden multiple accept=".html,.htm,.json">
   <input type="file" id="elfile" hidden multiple>
   <input type="file" id="xfile" hidden multiple accept=".html,.htm,.json">`;
@@ -3775,12 +3810,14 @@ function renderConflicts() {
   const list = live(D.conflicts).sort((a, b) => b.at - a.at);
   if (!list.length) { if (back) back.remove(); toast(_t('競合はありません')); focusMain(); return; }
   if (!back) {
-    back = document.createElement('div');
-    back.id = 'cfpanel'; back.className = 'dlg-back';
+    back = document.createElement('dialog');
+    back.id = 'cfpanel'; back.className = 'dlg-back'; back.setAttribute('aria-labelledby', 'cfpanel-t');
     back.addEventListener('click', e => { const b = e.target.closest('[data-cf]'); if (b) resolveConflict(b.dataset.cf, b.dataset.id); else if (e.target === back) { back.remove(); focusMain(); } });
+    back.addEventListener('cancel', e => { e.preventDefault(); back.remove(); focusMain(); });
     document.body.appendChild(back);
+    showModal(back);
   }
-  back.innerHTML = `<div class="dlg wide" role="dialog" tabindex="-1" style="outline:none"><h4>${_t('競合 {0} 件', list.length)}</h4>
+  back.innerHTML = `<div class="dlg wide" tabindex="-1" style="outline:none"><h4 id="cfpanel-t">${_t('競合 {0} 件', list.length)}</h4>
     <p>${_t('ほかの人のファイルと合わせたときに、同じ箇所が別々に直されていたものです。今は新しいほうの値を表示しています。どちらの値を使うか選んでください。')}</p>
     ${list.map(cf => {
       const p = cfPlace(cf), o = findObj(cf.coll, cf.obj);
